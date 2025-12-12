@@ -12,8 +12,7 @@ RUN mkdir -p /data /tmp && \
 # Install runtime dependencies for database libraries
 RUN apk add --no-cache \
     postgresql-libs \
-    sqlite-libs \
-    su-exec
+    sqlite-libs
 
 # Install database and CSV packages
 RUN bun add -g postgres pg csv-parser papaparse
@@ -23,15 +22,12 @@ RUN cat > /usr/local/bin/runner.sh <<'EOF'
 #!/bin/sh
 set -e
 
-# Fix ownership of /data volume (runs as root initially)
-chown -R 1000:1000 /data 2>/dev/null || true
+# Read code from stdin to fixed path
+cat > /tmp/script.ts
 
-# Drop to non-root user and read code from stdin
-su-exec 1000:1000 sh -c '
-  cat > /tmp/script.ts
-  cd /data
-  exec bun run /tmp/script.ts
-'
+# Run the code as user 1000:1000
+cd /data
+exec bun run /tmp/script.ts
 EOF
 
 RUN chmod +x /usr/local/bin/runner.sh
@@ -39,5 +35,8 @@ RUN chmod +x /usr/local/bin/runner.sh
 # Set working directory
 WORKDIR /data
 
-# Entrypoint (runs as root initially to fix permissions)
+# Run as non-root user (permissions are set by sandbox manager before container starts)
+USER 1000:1000
+
+# Entrypoint
 ENTRYPOINT ["/usr/local/bin/runner.sh"]

@@ -17,8 +17,7 @@ RUN apk add --no-cache \
     freetype \
     libpng \
     postgresql-libs \
-    sqlite-libs \
-    su-exec
+    sqlite-libs
 
 # Install build dependencies temporarily
 RUN apk add --no-cache --virtual .build-deps \
@@ -45,15 +44,12 @@ RUN cat > /usr/local/bin/runner.sh <<'EOF'
 #!/bin/sh
 set -e
 
-# Fix ownership of /data volume (runs as root initially)
-chown -R 1000:1000 /data 2>/dev/null || true
+# Read code from stdin to fixed path
+cat > /tmp/script.py
 
-# Drop to non-root user and read code from stdin
-su-exec 1000:1000 sh -c '
-  cat > /tmp/script.py
-  cd /data
-  exec python /tmp/script.py
-'
+# Run the code as user 1000:1000
+cd /data
+exec python /tmp/script.py
 EOF
 
 RUN chmod +x /usr/local/bin/runner.sh
@@ -61,5 +57,8 @@ RUN chmod +x /usr/local/bin/runner.sh
 # Set working directory
 WORKDIR /data
 
-# Entrypoint (runs as root initially to fix permissions)
+# Run as non-root user (permissions are set by sandbox manager before container starts)
+USER 1000:1000
+
+# Entrypoint
 ENTRYPOINT ["/usr/local/bin/runner.sh"]
