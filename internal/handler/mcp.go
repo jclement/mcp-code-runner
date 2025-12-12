@@ -101,11 +101,54 @@ func (h *MCPHandler) handleToolsList(req JSONRPCRequest) JSONRPCResponse {
 		"typescript": {"postgres", "pg", "csv-parser", "papaparse"},
 	}
 
-	// Create description with libraries
-	description := fmt.Sprintf("Execute code in a sandboxed Docker container. Supports: %v. Files created in /data are persisted and accessible via download URLs.\n\nAvailable libraries:\n", languages)
+	// Create comprehensive description with examples
+	description := fmt.Sprintf(`Execute code in a sandboxed Docker container. Supports: %v. Files in /data persist across executions and are accessible via download URLs.
+
+Available libraries:
+`, languages)
 	for lang, libs := range libraryInfo {
 		description += fmt.Sprintf("- %s: %v\n", lang, libs)
 	}
+
+	description += `
+Environment variables (auto-injected):
+- FILE_BASE_URL: Base URL for generated files (e.g., "https://example.com/files/abc123...")
+
+Example workflow:
+1. upload_file: Upload data.csv
+2. run_code: Analyze data, create chart, generate markdown report
+3. Output includes markdown with embedded image URLs
+
+Example Python code:
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Read uploaded file
+df = pd.read_csv('/data/data.csv')
+
+# Create visualization
+plt.figure(figsize=(10, 6))
+plt.bar(df['category'], df['value'])
+plt.title('Analysis Results')
+plt.savefig('/data/chart.png', dpi=150, bbox_inches='tight')
+
+# Generate markdown report with embedded images
+base_url = os.environ['FILE_BASE_URL']
+report = f"""# Analysis Report
+
+## Visualization
+![Chart]({base_url}/chart.png)
+
+## Summary
+- Total records: {len(df)}
+- Average value: {df['value'].mean():.2f}
+
+[Download raw data]({base_url}/data.csv)
+"""
+print(report)
+
+The markdown output can be directly rendered by AI assistants with working image/file links.`
 
 	tools := []map[string]interface{}{
 		{
@@ -236,8 +279,7 @@ func (h *MCPHandler) handleRunCode(ctx context.Context, id interface{}, argsJSON
 		log.Printf("[MCP] Unsupported language: %s", args.Language)
 		result := RunCodeResult{
 			Success: false,
-			Output:  fmt.Sprintf("Unsupported language: %s", args.Language),
-			Files:   []FileDescriptor{},
+			Stderr:  fmt.Sprintf("Unsupported language: %s", args.Language),
 		}
 		return h.wrapToolResult(id, result)
 	}
@@ -252,8 +294,7 @@ func (h *MCPHandler) handleRunCode(ctx context.Context, id interface{}, argsJSON
 		log.Printf("[MCP] Failed to create sandbox directory: %v", err)
 		result := RunCodeResult{
 			Success: false,
-			Output:  fmt.Sprintf("Failed to create sandbox: %v", err),
-			Files:   []FileDescriptor{},
+			Stderr:  fmt.Sprintf("Failed to create sandbox: %v", err),
 		}
 		return h.wrapToolResult(id, result)
 	}
@@ -275,36 +316,19 @@ func (h *MCPHandler) handleRunCode(ctx context.Context, id interface{}, argsJSON
 		env = make(map[string]string)
 	}
 
+	// Inject FILE_BASE_URL so code can generate markdown with correct URLs
+	fileBaseURL := fmt.Sprintf("%s/files/%s", h.signer.GetBaseURL(), hashedDir)
+	env["FILE_BASE_URL"] = fileBaseURL
+
 	// Execute code in container (use host path for bind mount)
 	log.Printf("[MCP] Executing %s code for conversation %s (network: %v, env vars: %d)", args.Language, args.ConversationID, networkEnabled, len(env))
 	execResult := h.executor.Execute(ctx, runnerInfo.Image, sandboxHostPath, args.Code, networkEnabled, env)
 	log.Printf("[MCP] Execution completed: success=%v, exitCode=%d", execResult.Success, execResult.ExitCode)
 
-	// List files in sandbox
-	log.Printf("[MCP] Listing files in sandbox")
-	files, err := h.sandbox.ListFiles(args.ConversationID)
-	if err != nil {
-		log.Printf("[MCP] Failed to list files: %v", err)
-		files = []string{}
-	}
-	log.Printf("[MCP] Found %d files", len(files))
-
-	// Create file descriptors with simple URLs (hashedDir is already secure)
-	fileDescriptors := make([]FileDescriptor, 0, len(files))
-	baseURL := h.signer.GetBaseURL()
-	for _, filename := range files {
-		fileURL := fmt.Sprintf("%s/files/%s/%s", baseURL, hashedDir, filename)
-		fileDescriptors = append(fileDescriptors, FileDescriptor{
-			Name: filename,
-			URL:  fileURL,
-		})
-		log.Printf("[MCP] File available: %s -> %s", filename, fileURL)
-	}
-
 	result := RunCodeResult{
 		Success: execResult.Success,
-		Output:  execResult.Output,
-		Files:   fileDescriptors,
+		Stdout:  execResult.Stdout,
+		Stderr:  execResult.Stderr,
 	}
 
 	log.Printf("[MCP] run_code completed successfully")

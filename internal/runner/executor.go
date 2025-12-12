@@ -16,7 +16,8 @@ import (
 // ExecutionResult holds the result of a code execution
 type ExecutionResult struct {
 	Success  bool
-	Output   string
+	Stdout   string
+	Stderr   string
 	ExitCode int
 	TimedOut bool
 	Error    error
@@ -78,7 +79,7 @@ func (e *Executor) Execute(ctx context.Context, imageName, sandboxDir, code stri
 	if err != nil {
 		return ExecutionResult{
 			Success: false,
-			Output:  fmt.Sprintf("Failed to create container: %v", err),
+			Stderr:  fmt.Sprintf("Failed to create container: %v", err),
 			Error:   err,
 		}
 	}
@@ -101,7 +102,7 @@ func (e *Executor) Execute(ctx context.Context, imageName, sandboxDir, code stri
 	if err != nil {
 		return ExecutionResult{
 			Success: false,
-			Output:  fmt.Sprintf("Failed to attach to container: %v", err),
+			Stderr:  fmt.Sprintf("Failed to attach to container: %v", err),
 			Error:   err,
 		}
 	}
@@ -111,7 +112,7 @@ func (e *Executor) Execute(ctx context.Context, imageName, sandboxDir, code stri
 	if err := e.cli.ContainerStart(execCtx, containerID, container.StartOptions{}); err != nil {
 		return ExecutionResult{
 			Success: false,
-			Output:  fmt.Sprintf("Failed to start container: %v", err),
+			Stderr:  fmt.Sprintf("Failed to start container: %v", err),
 			Error:   err,
 		}
 	}
@@ -137,7 +138,8 @@ func (e *Executor) Execute(ctx context.Context, imageName, sandboxDir, code stri
 		if err != nil {
 			return ExecutionResult{
 				Success: false,
-				Output:  fmt.Sprintf("Container wait error: %v\n%s", err, stdoutBuf.String()+stderrBuf.String()),
+				Stdout:  stdoutBuf.String(),
+				Stderr:  fmt.Sprintf("Container wait error: %v\n%s", err, stderrBuf.String()),
 				Error:   err,
 			}
 		}
@@ -151,24 +153,25 @@ func (e *Executor) Execute(ctx context.Context, imageName, sandboxDir, code stri
 	// Give a moment for output to be fully read
 	time.Sleep(100 * time.Millisecond)
 
-	// Combine stdout and stderr
-	output := stdoutBuf.String()
-	if stderrBuf.Len() > 0 {
-		if output != "" {
-			output += "\n"
-		}
-		output += stderrBuf.String()
-	}
+	// Get stdout and stderr separately
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
 
 	if timedOut {
-		output = fmt.Sprintf("Execution timed out after %v\n%s", e.timeout, output)
+		timeoutMsg := fmt.Sprintf("Execution timed out after %v", e.timeout)
+		if stderr != "" {
+			stderr = timeoutMsg + "\n" + stderr
+		} else {
+			stderr = timeoutMsg
+		}
 	}
 
 	success := exitCode == 0 && !timedOut
 
 	return ExecutionResult{
 		Success:  success,
-		Output:   output,
+		Stdout:   stdout,
+		Stderr:   stderr,
 		ExitCode: int(exitCode),
 		TimedOut: timedOut,
 	}

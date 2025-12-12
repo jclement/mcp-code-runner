@@ -417,27 +417,27 @@ with open("/data/hello.txt", "w") as f:
             <div class="examples">
                 <div class="example-btn" onclick="loadExample('python-hello')">
                     <h4>Python / Hello World</h4>
-                    <p>Basic output and file operations</p>
+                    <p>Generate markdown with file links</p>
                 </div>
                 <div class="example-btn" onclick="loadExample('python-data')">
                     <h4>Python / Data Analysis</h4>
-                    <p>Pandas DataFrame and CSV export</p>
+                    <p>Chart visualization + markdown report</p>
                 </div>
                 <div class="example-btn" onclick="loadExample('python-github')">
                     <h4>Python / GitHub Analysis</h4>
-                    <p>Fetch page, analyze text, generate pie chart</p>
+                    <p>Web scraping + pie chart + markdown</p>
                 </div>
                 <div class="example-btn" onclick="loadExample('python-env')">
                     <h4>Python / Environment Variables</h4>
-                    <p>Demonstrates using env vars for API keys</p>
+                    <p>Using custom env vars and FILE_BASE_URL</p>
                 </div>
                 <div class="example-btn" onclick="loadExample('typescript-hello')">
                     <h4>TypeScript / Hello World</h4>
-                    <p>Console logging and JSON file creation</p>
+                    <p>JSON file + markdown with links</p>
                 </div>
                 <div class="example-btn" onclick="loadExample('typescript-math')">
                     <h4>TypeScript / Fibonacci</h4>
-                    <p>Algorithm implementation and data output</p>
+                    <p>Math analysis + markdown report</p>
                 </div>
             </div>
         </div>
@@ -468,19 +468,30 @@ with open("/data/hello.txt", "w") as f:
         const examples = {
             'python-hello': {
                 language: 'python',
-                code: `print("Hello from Python!")
+                code: `import os
+
+print("Hello from Python!")
 print("Python version:", __import__('sys').version)
 
 # Write to file
 with open("/data/hello.txt", "w") as f:
     f.write("Hello, World!")
 
-print("File created: hello.txt")`
+# Generate markdown with file link
+base_url = os.environ['FILE_BASE_URL']
+markdown = f"""# Hello World Example
+
+Python version: {__import__('sys').version.split()[0]}
+
+[Download hello.txt]({base_url}/hello.txt)
+"""
+print(markdown)`
             },
             'python-data': {
                 language: 'python',
-                code: `import pandas as pd
-import numpy as np
+                code: `import os
+import pandas as pd
+import matplotlib.pyplot as plt
 
 # Generate sample data
 data = {
@@ -490,20 +501,47 @@ data = {
 }
 
 df = pd.DataFrame(data)
-print("DataFrame created:")
-print(df)
 
 # Save to CSV
 df.to_csv('/data/results.csv', index=False)
-print("\\nSaved to results.csv")
 
-# Calculate statistics
-print("\\nStatistics:")
-print(df.describe())`
+# Create visualization
+plt.figure(figsize=(10, 6))
+plt.bar(df['Name'], df['Score'], color='#3b82f6')
+plt.title('Student Scores', fontsize=16, weight='bold')
+plt.ylabel('Score')
+plt.xlabel('Student')
+plt.ylim(0, 100)
+plt.grid(axis='y', alpha=0.3)
+plt.tight_layout()
+plt.savefig('/data/scores.png', dpi=150, bbox_inches='tight')
+
+# Generate markdown report
+base_url = os.environ['FILE_BASE_URL']
+markdown = f"""# Student Data Analysis
+
+## Visualization
+
+![Student Scores]({base_url}/scores.png)
+
+## Statistics
+
+- **Total Students**: {len(df)}
+- **Average Score**: {df['Score'].mean():.1f}
+- **Highest Score**: {df['Score'].max():.1f} ({df.loc[df['Score'].idxmax(), 'Name']})
+- **Lowest Score**: {df['Score'].min():.1f} ({df.loc[df['Score'].idxmin(), 'Name']})
+
+## Data Files
+
+[Download CSV data]({base_url}/results.csv)
+"""
+print(markdown)`
             },
             'python-github': {
                 language: 'python',
-                code: `import requests
+                network: true,
+                code: `import os
+import requests
 import matplotlib.pyplot as plt
 
 # Fetch GitHub's homepage
@@ -544,17 +582,23 @@ plt.axis('equal')
 
 # Save to file
 plt.savefig('/data/github_analysis.png', dpi=150, bbox_inches='tight')
-print("\\nPie chart saved to github_analysis.png")
 
-# Save detailed stats
-with open('/data/analysis.txt', 'w') as f:
-    f.write(f"GitHub Homepage Analysis\\n")
-    f.write(f"========================\\n\\n")
-    f.write(f"Total lines: {total_lines}\\n")
-    f.write(f"Lines containing 'the': {lines_with_the} ({lines_with_the/total_lines*100:.1f}%)\\n")
-    f.write(f"Lines without 'the': {lines_without_the} ({lines_without_the/total_lines*100:.1f}%)\\n")
+# Generate markdown report with FILE_BASE_URL
+base_url = os.environ['FILE_BASE_URL']
+markdown = f"""# GitHub Homepage Analysis
 
-print("Analysis complete!")`
+## Results
+
+![Pie Chart]({base_url}/github_analysis.png)
+
+## Statistics
+
+- **Total lines**: {total_lines}
+- **Lines with "the"**: {lines_with_the} ({lines_with_the/total_lines*100:.1f}%)
+- **Lines without "the"**: {lines_without_the} ({lines_without_the/total_lines*100:.1f}%)
+"""
+
+print(markdown)`
             },
             'python-env': {
                 language: 'python',
@@ -602,23 +646,41 @@ print("\\nTip: Set environment variables above before running!")`
             },
             'typescript-hello': {
                 language: 'typescript',
-                code: `console.log("Hello from TypeScript!");
-console.log("Node version:", process.version);
+                code: `const fs = require('fs');
+
+console.log("Hello from TypeScript!");
+console.log("Bun version:", process.version);
 
 // Write JSON file
 const data = {
     message: "Hello, World!",
     timestamp: new Date().toISOString(),
-    platform: process.platform
+    platform: process.platform,
+    runtime: "Bun"
 };
 
-require('fs').writeFileSync('/data/output.json', JSON.stringify(data, null, 2));
-console.log("File created: output.json");
-console.log("Data:", data);`
+fs.writeFileSync('/data/output.json', JSON.stringify(data, null, 2));
+
+// Generate markdown with file link
+const baseUrl = process.env.FILE_BASE_URL;
+const markdown = \`# TypeScript Hello World
+
+**Runtime**: Bun \${process.version}
+**Platform**: \${process.platform}
+**Timestamp**: \${data.timestamp}
+
+## Output File
+
+[Download output.json](\${baseUrl}/output.json)
+\`;
+
+console.log(markdown);`
             },
             'typescript-math': {
                 language: 'typescript',
-                code: `// Calculate Fibonacci numbers
+                code: `const fs = require('fs');
+
+// Calculate Fibonacci numbers
 function fibonacci(n: number): number[] {
     const fib = [0, 1];
     for (let i = 2; i < n; i++) {
@@ -627,20 +689,39 @@ function fibonacci(n: number): number[] {
     return fib;
 }
 
-const numbers = fibonacci(10);
-console.log("Fibonacci sequence:", numbers);
+const numbers = fibonacci(15);
 
-// Save to file
-const fs = require('fs');
+// Calculate statistics
 const result = {
     sequence: numbers,
     sum: numbers.reduce((a, b) => a + b, 0),
-    count: numbers.length
+    count: numbers.length,
+    max: Math.max(...numbers),
+    average: numbers.reduce((a, b) => a + b, 0) / numbers.length
 };
 
+// Save to file
 fs.writeFileSync('/data/fibonacci.json', JSON.stringify(result, null, 2));
-console.log("\\nResults saved to fibonacci.json");
-console.log("Sum:", result.sum);`
+
+// Generate markdown report
+const baseUrl = process.env.FILE_BASE_URL;
+const markdown = \`# Fibonacci Analysis
+
+## Sequence
+\${numbers.join(', ')}
+
+## Statistics
+- **Count**: \${result.count} numbers
+- **Sum**: \${result.sum}
+- **Maximum**: \${result.max}
+- **Average**: \${result.average.toFixed(2)}
+
+## Data File
+
+[Download fibonacci.json](\${baseUrl}/fibonacci.json)
+\`;
+
+console.log(markdown);`
             }
         };
 
@@ -797,24 +878,75 @@ console.log("Sum:", result.sum);`
                 <span class="status-badge ${data.success ? 'online' : 'offline'}">
                     ${data.success ? 'Success' : 'Failed'}
                 </span>
-                <h3>Output</h3>
-                <pre>${escapeHtml(data.output)}</pre>
             `;
 
-            if (data.files && data.files.length > 0) {
-                html += '<div class="files"><h3>Generated Files</h3>';
-                data.files.forEach(file => {
-                    html += `
-                        <div class="file-item">
-                            <span class="file-name">${escapeHtml(file.name)}</span>
-                            <a href="${escapeHtml(file.url)}" class="file-link" target="_blank">Download</a>
-                        </div>
-                    `;
-                });
-                html += '</div>';
+            // Show stderr separately in red if present
+            if (data.stderr && data.stderr.trim()) {
+                html += `
+                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--error); border-radius: 4px; padding: 12px; margin-bottom: 16px;">
+                        <h3 style="color: var(--error); margin-top: 0;">Error Output</h3>
+                        <pre style="margin: 0; color: var(--error);">${escapeHtml(data.stderr)}</pre>
+                    </div>
+                `;
+            }
+
+            // Show stdout with markdown toggle if present
+            if (data.stdout && data.stdout.trim()) {
+                html += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h3 style="margin: 0;">Output</h3>
+                        <button onclick="toggleMarkdown()" style="padding: 4px 12px; background: var(--accent-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
+                            Toggle Markdown Preview
+                        </button>
+                    </div>
+                    <div id="stdout-raw" style="display: block;">
+                        <pre>${escapeHtml(data.stdout)}</pre>
+                    </div>
+                    <div id="stdout-markdown" style="display: none; background: white; color: #1f2937; padding: 16px; border-radius: 4px; border: 1px solid var(--border-color);">
+                        ${renderMarkdown(data.stdout)}
+                    </div>
+                `;
             }
 
             output.innerHTML = html;
+        }
+
+        function toggleMarkdown() {
+            const raw = document.getElementById('stdout-raw');
+            const markdown = document.getElementById('stdout-markdown');
+            if (raw && markdown) {
+                if (raw.style.display === 'none') {
+                    raw.style.display = 'block';
+                    markdown.style.display = 'none';
+                } else {
+                    raw.style.display = 'none';
+                    markdown.style.display = 'block';
+                }
+            }
+        }
+
+        function renderMarkdown(text) {
+            // Simple markdown renderer
+            let html = escapeHtml(text);
+
+            // Headers
+            html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+            html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+            html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+
+            // Bold
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+            // Images
+            html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto; margin: 12px 0; border-radius: 4px;"/>');
+
+            // Links
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #3b82f6; text-decoration: none;">$1</a>');
+
+            // Line breaks
+            html = html.replace(/\n/g, '<br/>');
+
+            return html;
         }
 
         function showError(message) {

@@ -297,7 +297,13 @@ Execute code in a sandboxed Docker container.
 - **Python**: `requests`, `numpy`, `pandas`, `matplotlib`, `psycopg2`
 - **TypeScript**: `postgres`, `pg`, `csv-parser`, `papaparse`
 
-**Example: Python Data Analysis**
+**Environment Variables (automatically injected):**
+- **`FILE_BASE_URL`** - Base URL for generated files in this conversation
+  - Use to create markdown with links to your generated files
+  - Example (Python): `f"![Chart]({os.environ['FILE_BASE_URL']}/chart.png)"`
+  - Example (TypeScript): `process.env.FILE_BASE_URL + '/output.json'`
+
+**Example: Python Data Analysis with Markdown Output**
 
 ```bash
 curl -X POST http://localhost:8080/mcp \
@@ -312,7 +318,7 @@ curl -X POST http://localhost:8080/mcp \
       "arguments": {
         "conversationId": "session-123",
         "language": "python",
-        "code": "import pandas as pd\nimport matplotlib.pyplot as plt\n\ndf = pd.read_csv(\"/data/data.csv\")\nprint(df.describe())\n\nplt.bar(df[\"name\"], df[\"age\"])\nplt.savefig(\"/data/chart.png\")\nprint(\"Chart saved!\")"
+        "code": "import os\nimport pandas as pd\nimport matplotlib.pyplot as plt\n\ndf = pd.read_csv(\"/data/data.csv\")\nprint(df.describe())\n\nplt.bar(df[\"name\"], df[\"age\"])\nplt.savefig(\"/data/chart.png\")\n\n# Generate markdown with correct URL\nbase_url = os.environ[\"FILE_BASE_URL\"]\nmarkdown = f\"# Analysis Results\\n\\n## Chart\\n\\n![Age Distribution]({base_url}/chart.png)\\n\\n## Data\\n\\nSee [data.csv]({base_url}/data.csv)\"\nprint(markdown)"
       }
     }
   }'

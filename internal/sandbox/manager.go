@@ -26,11 +26,14 @@ func NewManager(sandboxRoot, sandboxHostPath, secret string) *Manager {
 }
 
 // hashConversationID creates a filesystem-safe hash of conversationID + secret
+// Returns first 16 characters (64 bits) of SHA256 hash for shorter, cleaner paths
+// while maintaining cryptographic security (2^64 possible values)
 func (m *Manager) hashConversationID(conversationID string) string {
 	h := sha256.New()
 	h.Write([]byte(conversationID))
 	h.Write([]byte(m.secret))
-	return hex.EncodeToString(h.Sum(nil))
+	fullHash := hex.EncodeToString(h.Sum(nil))
+	return fullHash[:16] // Truncate to 16 chars (64 bits of entropy)
 }
 
 // EnsureSandboxDir ensures the sandbox directory exists for a conversation

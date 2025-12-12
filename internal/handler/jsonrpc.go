@@ -71,9 +71,9 @@ type FileDescriptor struct {
 
 // RunCodeResult represents the result of code execution
 type RunCodeResult struct {
-	Success bool             `json:"success"`
-	Output  string           `json:"output"`
-	Files   []FileDescriptor `json:"files"`
+	Success bool   `json:"success"`
+	Stdout  string `json:"stdout"`
+	Stderr  string `json:"stderr,omitempty"`
 }
 
 // RunnerDescriptor describes an available runner
