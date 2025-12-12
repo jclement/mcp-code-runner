@@ -114,26 +114,30 @@ Available libraries:
 Environment variables (auto-injected):
 - FILE_BASE_URL: Base URL for generated files (e.g., "https://example.com/files/abc123...")
 
-Example workflow:
-1. upload_file: Upload data.csv
-2. run_code: Analyze data, create chart, generate markdown report
-3. Output includes markdown with embedded image URLs
+⚠️ CRITICAL: You MUST use FILE_BASE_URL for ALL file references in markdown!
+   - Correct: f"{os.environ['FILE_BASE_URL']}/chart.png"
+   - WRONG: "/data/chart.png" or "chart.png" (will be broken links!)
+   - File paths in markdown MUST be full URLs using FILE_BASE_URL
 
-Example Python code:
+Working directory: Container starts in /data (files persist across executions)
+- Save files: Use relative paths like "chart.png" or "./output.json"
+- Read files: Use relative paths like "data.csv"
+- NO need to use "/data/" prefix - you're already in that directory!
+
+Example Python code showing CORRECT usage:
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Read uploaded file
-df = pd.read_csv('/data/data.csv')
+# Read file (relative path - already in /data)
+df = pd.read_csv('data.csv')
 
-# Create visualization
+# Create visualization (relative path)
 plt.figure(figsize=(10, 6))
 plt.bar(df['category'], df['value'])
-plt.title('Analysis Results')
-plt.savefig('/data/chart.png', dpi=150, bbox_inches='tight')
+plt.savefig('chart.png', dpi=150, bbox_inches='tight')
 
-# Generate markdown report with embedded images
+# Generate markdown with FULL URLs using FILE_BASE_URL
 base_url = os.environ['FILE_BASE_URL']
 report = f"""# Analysis Report
 
@@ -144,11 +148,11 @@ report = f"""# Analysis Report
 - Total records: {len(df)}
 - Average value: {df['value'].mean():.2f}
 
-[Download raw data]({base_url}/data.csv)
+[Download data]({base_url}/data.csv)
 """
 print(report)
 
-The markdown output can be directly rendered by AI assistants with working image/file links.`
+REMEMBER: ALL markdown links MUST use FILE_BASE_URL for proper rendering!`
 
 	tools := []map[string]interface{}{
 		{
