@@ -123,6 +123,36 @@ func (m *Manager) GetSandboxRoot() string {
 	return m.sandboxRoot
 }
 
+// WriteFile writes content to a file in a conversation's sandbox
+// Creates the sandbox directory if it doesn't exist
+func (m *Manager) WriteFile(conversationID, filename string, content []byte) error {
+	hashedDir := m.hashConversationID(conversationID)
+	sandboxDir := filepath.Join(m.sandboxRoot, hashedDir)
+
+	// Ensure sandbox directory exists
+	if err := os.MkdirAll(sandboxDir, 0o777); err != nil {
+		return fmt.Errorf("failed to create sandbox directory: %w", err)
+	}
+
+	// Change ownership to 1000:1000
+	if err := os.Chown(sandboxDir, 1000, 1000); err != nil {
+		fmt.Printf("Warning: failed to chown %s to 1000:1000: %v\n", sandboxDir, err)
+	}
+
+	// Write file
+	filePath := filepath.Join(sandboxDir, filename)
+	if err := os.WriteFile(filePath, content, 0o666); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	// Change file ownership to 1000:1000
+	if err := os.Chown(filePath, 1000, 1000); err != nil {
+		fmt.Printf("Warning: failed to chown %s to 1000:1000: %v\n", filePath, err)
+	}
+
+	return nil
+}
+
 // chownRecursive changes ownership of a directory and all its contents
 func chownRecursive(path string, uid, gid int) error {
 	return filepath.Walk(path, func(name string, info os.FileInfo, err error) error {

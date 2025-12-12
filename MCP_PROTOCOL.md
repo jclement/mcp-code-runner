@@ -69,8 +69,30 @@ This is known as "Streamable HTTP" transport in the MCP specification.
   "result": {
     "tools": [
       {
-        "name": "sandbox.run_code",
-        "description": "Execute code in a sandboxed Docker container. Supports: [python, typescript]. Files created in /data are persisted and accessible via download URLs.",
+        "name": "upload_file",
+        "description": "Upload a file to the sandbox for analysis. The file will be available in /data for code execution. Use this before run_code to provide data files (CSV, JSON, etc.) for analysis.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "conversationId": {
+              "type": "string",
+              "description": "Unique identifier for the conversation/session"
+            },
+            "filename": {
+              "type": "string",
+              "description": "Name of the file to create (e.g., 'data.csv', 'input.json')"
+            },
+            "content": {
+              "type": "string",
+              "description": "Base64 encoded file content"
+            }
+          },
+          "required": ["conversationId", "filename", "content"]
+        }
+      },
+      {
+        "name": "run_code",
+        "description": "Execute code in a sandboxed Docker container. Supports: [python, typescript]. Files created in /data are persisted and accessible via download URLs.\n\nAvailable libraries:\n- python: [requests, numpy, pandas, matplotlib, psycopg2]\n- typescript: [postgres, pg, csv-parser, papaparse]",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -103,7 +125,7 @@ This is known as "Streamable HTTP" transport in the MCP specification.
         }
       },
       {
-        "name": "sandbox.list_runners",
+        "name": "list_runners",
         "description": "List all available code execution runners and their Docker images",
         "inputSchema": {
           "type": "object"
@@ -117,7 +139,7 @@ This is known as "Streamable HTTP" transport in the MCP specification.
 ### 3. `tools/call`
 **Description**: Execute a specific tool
 
-#### Tool: `sandbox.run_code`
+#### Tool: `upload_file`
 
 **Request**:
 ```json
@@ -126,7 +148,42 @@ This is known as "Streamable HTTP" transport in the MCP specification.
   "id": 3,
   "method": "tools/call",
   "params": {
-    "name": "sandbox.run_code",
+    "name": "upload_file",
+    "arguments": {
+      "conversationId": "user-123-session-456",
+      "filename": "data.csv",
+      "content": "bmFtZSxhZ2UKQWxpY2UsMzAKQm9iLDI1"
+    }
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"success\": true,\n  \"message\": \"File 'data.csv' uploaded successfully (18 bytes)\",\n  \"file\": {\n    \"name\": \"data.csv\",\n    \"url\": \"https://example.com/files/abc123.../data.csv\"\n  }\n}"
+      }
+    ]
+  }
+}
+```
+
+#### Tool: `run_code`
+
+**Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "run_code",
     "arguments": {
       "conversationId": "user-123-session-456",
       "language": "python",
@@ -144,37 +201,28 @@ This is known as "Streamable HTTP" transport in the MCP specification.
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 3,
+  "id": 4,
   "result": {
     "content": [
       {
-        "type": "output",
-        "data": {
-          "success": true,
-          "output": "Plot saved!\n",
-          "files": [
-            {
-              "name": "plot.png",
-              "url": "https://example.com/files/abc123.../plot.png"
-            }
-          ]
-        }
+        "type": "text",
+        "text": "{\n  \"success\": true,\n  \"output\": \"Plot saved!\\n\",\n  \"files\": [\n    {\n      \"name\": \"plot.png\",\n      \"url\": \"https://example.com/files/abc123.../plot.png\"\n    }\n  ]\n}"
       }
     ]
   }
 }
 ```
 
-#### Tool: `sandbox.list_runners`
+#### Tool: `list_runners`
 
 **Request**:
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 4,
+  "id": 5,
   "method": "tools/call",
   "params": {
-    "name": "sandbox.list_runners",
+    "name": "list_runners",
     "arguments": {}
   }
 }
@@ -184,23 +232,12 @@ This is known as "Streamable HTTP" transport in the MCP specification.
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 4,
+  "id": 5,
   "result": {
     "content": [
       {
-        "type": "output",
-        "data": {
-          "languages": [
-            {
-              "language": "python",
-              "image": "mcp-sandbox-runner-python:latest"
-            },
-            {
-              "language": "typescript",
-              "image": "mcp-sandbox-runner-typescript:latest"
-            }
-          ]
-        }
+        "type": "text",
+        "text": "{\n  \"languages\": [\n    {\n      \"language\": \"python\",\n      \"image\": \"mcp-sandbox-runner-python:latest\"\n    },\n    {\n      \"language\": \"typescript\",\n      \"image\": \"mcp-sandbox-runner-typescript:latest\"\n    }\n  ]\n}"
       }
     ]
   }

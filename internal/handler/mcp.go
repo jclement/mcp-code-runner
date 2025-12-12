@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -108,6 +109,28 @@ func (h *MCPHandler) handleToolsList(req JSONRPCRequest) JSONRPCResponse {
 
 	tools := []map[string]interface{}{
 		{
+			"name":        "upload_file",
+			"description": "Upload a file to the sandbox for analysis. The file will be available in /data for code execution. Use this before run_code to provide data files (CSV, JSON, etc.) for analysis.",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"conversationId": map[string]interface{}{
+						"type":        "string",
+						"description": "Unique identifier for the conversation/session",
+					},
+					"filename": map[string]interface{}{
+						"type":        "string",
+						"description": "Name of the file to create (e.g., 'data.csv', 'input.json')",
+					},
+					"content": map[string]interface{}{
+						"type":        "string",
+						"description": "Base64 encoded file content",
+					},
+				},
+				"required": []string{"conversationId", "filename", "content"},
+			},
+		},
+		{
 			"name":        "run_code",
 			"description": description,
 			"inputSchema": map[string]interface{}{
@@ -169,6 +192,8 @@ func (h *MCPHandler) handleToolCall(ctx context.Context, req JSONRPCRequest) JSO
 	log.Printf("[MCP] Tool call: %s", params.Name)
 
 	switch params.Name {
+	case "upload_file":
+		return h.handleUploadFile(req.ID, params.Arguments)
 	case "run_code":
 		return h.handleRunCode(ctx, req.ID, params.Arguments)
 	case "list_runners":
@@ -283,6 +308,83 @@ func (h *MCPHandler) handleRunCode(ctx context.Context, id interface{}, argsJSON
 	}
 
 	log.Printf("[MCP] run_code completed successfully")
+	return h.wrapToolResult(id, result)
+}
+
+// handleUploadFile implements the upload_file tool
+func (h *MCPHandler) handleUploadFile(id interface{}, argsJSON json.RawMessage) JSONRPCResponse {
+	log.Printf("[MCP] Parsing upload_file arguments")
+	var args UploadFileArguments
+	if err := json.Unmarshal(argsJSON, &args); err != nil {
+		log.Printf("[MCP] Failed to parse arguments: %v", err)
+		return NewErrorResponse(id, InvalidParams, "Invalid arguments", err.Error())
+	}
+
+	log.Printf("[MCP] upload_file: conversationId=%s, filename=%s, contentLen=%d",
+		args.ConversationID, args.Filename, len(args.Content))
+
+	// Validate arguments
+	if args.ConversationID == "" {
+		log.Printf("[MCP] Missing conversationId")
+		return NewErrorResponse(id, InvalidParams, "conversationId is required", nil)
+	}
+	if args.Filename == "" {
+		log.Printf("[MCP] Missing filename")
+		return NewErrorResponse(id, InvalidParams, "filename is required", nil)
+	}
+	if args.Content == "" {
+		log.Printf("[MCP] Missing content")
+		return NewErrorResponse(id, InvalidParams, "content is required", nil)
+	}
+
+	// Decode base64 content
+	content, err := base64.StdEncoding.DecodeString(args.Content)
+	if err != nil {
+		log.Printf("[MCP] Failed to decode base64 content: %v", err)
+		result := map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("Failed to decode base64 content: %v", err),
+		}
+		return h.wrapToolResult(id, result)
+	}
+
+	log.Printf("[MCP] Decoded %d bytes for file %s", len(content), args.Filename)
+
+	// Write file to sandbox
+	if err := h.sandbox.WriteFile(args.ConversationID, args.Filename, content); err != nil {
+		log.Printf("[MCP] Failed to write file: %v", err)
+		result := map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("Failed to write file: %v", err),
+		}
+		return h.wrapToolResult(id, result)
+	}
+
+	// Get the hashed directory name for URL
+	hashedDir, err := h.sandbox.EnsureSandboxDir(args.ConversationID)
+	if err != nil {
+		log.Printf("[MCP] Failed to get hashed directory: %v", err)
+		result := map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("Failed to get directory: %v", err),
+		}
+		return h.wrapToolResult(id, result)
+	}
+
+	// Create file URL
+	baseURL := h.signer.GetBaseURL()
+	fileURL := fmt.Sprintf("%s/files/%s/%s", baseURL, hashedDir, args.Filename)
+
+	result := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("File '%s' uploaded successfully (%d bytes)", args.Filename, len(content)),
+		"file": FileDescriptor{
+			Name: args.Filename,
+			URL:  fileURL,
+		},
+	}
+
+	log.Printf("[MCP] upload_file completed: %s -> %s", args.Filename, fileURL)
 	return h.wrapToolResult(id, result)
 }
 

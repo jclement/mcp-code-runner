@@ -87,6 +87,13 @@ type ListRunnersResult struct {
 	Languages []RunnerDescriptor `json:"languages"`
 }
 
+// UploadFileArguments represents arguments for upload_file
+type UploadFileArguments struct {
+	ConversationID string `json:"conversationId"`
+	Filename       string `json:"filename"`
+	Content        string `json:"content"` // Base64 encoded file content
+}
+
 // NewSuccessResponse creates a successful JSON-RPC response
 func NewSuccessResponse(id interface{}, result interface{}) JSONRPCResponse {
 	return JSONRPCResponse{
