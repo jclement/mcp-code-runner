@@ -43,25 +43,33 @@ func (s *Server) SetupRoutes(mux *http.ServeMux) {
 	// Homepage - web interface for testing
 	mux.HandleFunc("/", s.handleHomepage)
 
-	// MCP endpoints with authentication
+	// MCP endpoint with authentication (supports both POST and GET)
+	// Per MCP spec: single endpoint for HTTP + SSE transport
 	authMW := auth.Middleware(s.apiToken)
 	mux.Handle("/mcp", authMW(http.HandlerFunc(s.handleMCP)))
-	mux.Handle("/mcp/events", authMW(http.HandlerFunc(s.handleSSE)))
 
 	// File download endpoint (no auth, URLs use hashed directory names for security)
 	mux.HandleFunc("/files/", s.handleFileDownload)
 }
 
-// handleMCP handles JSON-RPC requests
+// handleMCP handles MCP requests (HTTP + SSE transport)
+// Per MCP spec: single endpoint supporting POST (JSON-RPC) and GET (SSE resumption)
 func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[HTTP] MCP request from %s", r.RemoteAddr)
+	log.Printf("[HTTP] MCP %s request from %s", r.Method, r.RemoteAddr)
 
-	if r.Method != http.MethodPost {
-		log.Printf("[HTTP] Invalid method: %s", r.Method)
+	switch r.Method {
+	case http.MethodPost:
+		s.handleMCPPost(w, r)
+	case http.MethodGet:
+		s.handleMCPGet(w, r)
+	default:
+		log.Printf("[HTTP] Invalid method: %s (only POST and GET allowed)", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
+}
 
+// handleMCPPost handles POST requests with JSON-RPC messages
+func (s *Server) handleMCPPost(w http.ResponseWriter, r *http.Request) {
 	// Read request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -84,37 +92,53 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[HTTP] Parsed JSON-RPC request: method=%s, id=%v", req.Method, req.ID)
 
+	// Check if client accepts SSE
+	acceptsSSE := false
+	acceptHeader := r.Header.Get("Accept")
+	if acceptHeader != "" {
+		for _, mediaType := range []string{"text/event-stream", "*/*"} {
+			if contains(acceptHeader, mediaType) {
+				acceptsSSE = true
+				break
+			}
+		}
+	}
+
+	log.Printf("[HTTP] Client accepts SSE: %v (Accept: %s)", acceptsSSE, acceptHeader)
+
 	// Handle request
 	resp := s.mcpHandler.Handle(r.Context(), req)
 
-	// Write response
-	log.Printf("[HTTP] Sending response for method=%s", req.Method)
+	// For simple request/response, use JSON
+	// In the future, we could use SSE for streaming responses
+	log.Printf("[HTTP] Sending JSON response for method=%s", req.Method)
 	s.writeJSONResponse(w, resp)
 }
 
-// handleSSE handles Server-Sent Events for MCP notifications
-func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+// handleMCPGet handles GET requests for SSE event stream resumption
+func (s *Server) handleMCPGet(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[HTTP] SSE stream request (Last-Event-ID: %s)", r.Header.Get("Last-Event-ID"))
 
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	// Send initial comment
-	fmt.Fprintf(w, ": SSE endpoint connected\n\n")
+	// Send initial connection message
+	fmt.Fprintf(w, ": MCP SSE stream connected\n\n")
 	if flusher, ok := w.(http.Flusher); ok {
 		flusher.Flush()
 	}
 
+	log.Printf("[HTTP] SSE stream established")
+
 	// Keep connection open
-	// In v1, we just keep the connection alive for heartbeat
-	// Future versions can send real-time notifications here
+	// In the future, we can send server-initiated requests/notifications here
 	<-r.Context().Done()
+	log.Printf("[HTTP] SSE stream closed")
 }
+
 
 // handleFileDownload handles file download requests
 // URLs are secure because the hashedDir is SHA256(conversationID + secret)
@@ -197,4 +221,9 @@ func (s *Server) writeJSONResponse(w http.ResponseWriter, resp JSONRPCResponse) 
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Printf("[HTTP] Failed to write response: %v", err)
 	}
+}
+
+// contains checks if a string contains a substring (case-insensitive for media types)
+func contains(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

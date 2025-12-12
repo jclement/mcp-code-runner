@@ -48,9 +48,10 @@ type ToolResult struct {
 }
 
 // ContentBlock represents a content block in the tool result
+// Per MCP spec, content must be text, image, audio, or resource
 type ContentBlock struct {
-	Type string      `json:"type"`
-	Data interface{} `json:"data"`
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
 }
 
 // RunCodeArguments represents arguments for sandbox.run_code

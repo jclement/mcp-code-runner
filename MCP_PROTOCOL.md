@@ -1,6 +1,14 @@
 # MCP Protocol Implementation
 
-This server implements the Model Context Protocol (MCP) specification version 2024-11-05.
+This server implements the Model Context Protocol (MCP) specification version 2024-11-05 using **HTTP with SSE (Server-Sent Events) transport**.
+
+## Transport Architecture
+
+Per the MCP spec, the server uses a **single endpoint** (`/mcp`) that supports both:
+- **POST requests**: Send JSON-RPC messages and receive responses (either JSON or SSE stream)
+- **GET requests**: Establish SSE streams for server-initiated messages
+
+This is known as "Streamable HTTP" transport in the MCP specification.
 
 ## Implemented Methods
 

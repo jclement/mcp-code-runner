@@ -297,13 +297,20 @@ func (h *MCPHandler) handleListRunners(id interface{}) JSONRPCResponse {
 	return h.wrapToolResult(id, result)
 }
 
-// wrapToolResult wraps a result in the MCP tool result format
+// wrapToolResult wraps a result in the MCP tool result format as text
 func (h *MCPHandler) wrapToolResult(id interface{}, data interface{}) JSONRPCResponse {
+	// Serialize data to JSON for text response
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		log.Printf("[MCP] Failed to marshal tool result: %v", err)
+		jsonData = []byte(fmt.Sprintf("%v", data))
+	}
+
 	toolResult := ToolResult{
 		Content: []ContentBlock{
 			{
-				Type: "output",
-				Data: data,
+				Type: "text",
+				Text: string(jsonData),
 			},
 		},
 	}

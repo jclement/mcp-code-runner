@@ -18,7 +18,8 @@
       "Bash(docker rmi:*)",
       "Bash(go build:*)",
       "Bash(docker build:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(timeout 10 curl -X POST https://codeblaster.onewheelgeek.net/mcp )"
     ],
     "deny": [],
     "ask": []
