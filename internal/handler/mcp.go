@@ -213,9 +213,11 @@ REMEMBER: ALL markdown links MUST use FILE_BASE_URL for proper rendering!`
 		},
 		{
 			"name":        "list_runners",
-			"description": "List all available code execution runners and their Docker images",
+			"description": "List all available code execution runners and their Docker images. This tool takes no parameters.",
 			"inputSchema": map[string]interface{}{
-				"type": "object",
+				"type":       "object",
+				"properties": map[string]interface{}{},
+				"required":   []string{},
 			},
 		},
 	}
