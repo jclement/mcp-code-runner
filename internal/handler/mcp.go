@@ -94,10 +94,22 @@ func (h *MCPHandler) handleToolsList(req JSONRPCRequest) JSONRPCResponse {
 		languages = append(languages, r.Language)
 	}
 
+	// Build library information per language
+	libraryInfo := map[string][]string{
+		"python":     {"requests", "numpy", "pandas", "matplotlib", "psycopg2"},
+		"typescript": {"postgres", "pg", "csv-parser", "papaparse"},
+	}
+
+	// Create description with libraries
+	description := fmt.Sprintf("Execute code in a sandboxed Docker container. Supports: %v. Files created in /data are persisted and accessible via download URLs.\n\nAvailable libraries:\n", languages)
+	for lang, libs := range libraryInfo {
+		description += fmt.Sprintf("- %s: %v\n", lang, libs)
+	}
+
 	tools := []map[string]interface{}{
 		{
-			"name":        "sandbox.run_code",
-			"description": fmt.Sprintf("Execute code in a sandboxed Docker container. Supports: %v. Files created in /data are persisted and accessible via download URLs.", languages),
+			"name":        "run_code",
+			"description": description,
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -130,7 +142,7 @@ func (h *MCPHandler) handleToolsList(req JSONRPCRequest) JSONRPCResponse {
 			},
 		},
 		{
-			"name":        "sandbox.list_runners",
+			"name":        "list_runners",
 			"description": "List all available code execution runners and their Docker images",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
@@ -157,9 +169,9 @@ func (h *MCPHandler) handleToolCall(ctx context.Context, req JSONRPCRequest) JSO
 	log.Printf("[MCP] Tool call: %s", params.Name)
 
 	switch params.Name {
-	case "sandbox.run_code":
+	case "run_code":
 		return h.handleRunCode(ctx, req.ID, params.Arguments)
-	case "sandbox.list_runners":
+	case "list_runners":
 		return h.handleListRunners(req.ID)
 	default:
 		log.Printf("[MCP] Unknown tool: %s", params.Name)
