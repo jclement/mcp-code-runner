@@ -159,8 +159,8 @@ func (s *Server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	hashedDir := parts[0]
 	filename := parts[1]
 
-	// Validate hashedDir is a valid hex string (64 chars for SHA256)
-	if len(hashedDir) != 64 {
+	// Validate hashedDir is a valid hex string (16 chars for truncated SHA256)
+	if len(hashedDir) != 16 {
 		http.Error(w, "Invalid directory hash", http.StatusBadRequest)
 		return
 	}
