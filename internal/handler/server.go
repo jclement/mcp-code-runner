@@ -54,7 +54,10 @@ func (s *Server) SetupRoutes(mux *http.ServeMux) {
 
 // handleMCP handles JSON-RPC requests
 func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[HTTP] MCP request from %s", r.RemoteAddr)
+
 	if r.Method != http.MethodPost {
+		log.Printf("[HTTP] Invalid method: %s", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -62,25 +65,30 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 	// Read request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("Failed to read request body: %v", err)
+		log.Printf("[HTTP] Failed to read request body: %v", err)
 		http.Error(w, "Failed to read request", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
 
+	log.Printf("[HTTP] Request body: %s", string(body))
+
 	// Parse JSON-RPC request
 	var req JSONRPCRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		log.Printf("Failed to parse JSON-RPC request: %v", err)
+		log.Printf("[HTTP] Failed to parse JSON-RPC request: %v", err)
 		resp := NewErrorResponse(nil, ParseError, "Parse error", err.Error())
 		s.writeJSONResponse(w, resp)
 		return
 	}
 
+	log.Printf("[HTTP] Parsed JSON-RPC request: method=%s, id=%v", req.Method, req.ID)
+
 	// Handle request
 	resp := s.mcpHandler.Handle(r.Context(), req)
 
 	// Write response
+	log.Printf("[HTTP] Sending response for method=%s", req.Method)
 	s.writeJSONResponse(w, resp)
 }
 
@@ -181,7 +189,12 @@ func (s *Server) handleHomepage(w http.ResponseWriter, r *http.Request) {
 // writeJSONResponse writes a JSON-RPC response
 func (s *Server) writeJSONResponse(w http.ResponseWriter, resp JSONRPCResponse) {
 	w.Header().Set("Content-Type", "application/json")
+
+	// Marshal to JSON for logging
+	respJSON, _ := json.Marshal(resp)
+	log.Printf("[HTTP] Response: %s", string(respJSON))
+
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("Failed to write response: %v", err)
+		log.Printf("[HTTP] Failed to write response: %v", err)
 	}
 }
