@@ -15,7 +15,30 @@ An MCP-compatible HTTP + SSE server that executes Python and TypeScript code in 
 
 ## Quick Start
 
-Get up and running in under a minute:
+### Option 1: Using Pre-built Images (Fastest)
+
+```bash
+# Clone repository
+git clone <repo-url>
+cd code-runner
+
+# Set your GitHub username
+export GITHUB_USER=jsc
+
+# Copy example .env file
+cp .env.example .env
+# Edit .env and set your tokens
+
+# Start with pre-built GHCR images
+docker compose -f docker-compose.ghcr.yml up -d
+
+# Open browser
+open http://localhost:8080
+```
+
+See [GHCR_USAGE.md](GHCR_USAGE.md) for detailed instructions on using pre-built images.
+
+### Option 2: Building Locally
 
 ```bash
 # Clone and enter directory
