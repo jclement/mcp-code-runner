@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod init:*)",
+      "Bash(go get:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(chmod:*)",
+      "Bash(cat:*)",
+      "Bash(./rebuild.sh)",
+      "Bash(docker run:*)",
+      "Bash(docker-compose stop:*)",
+      "Bash(docker-compose rm:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker compose stop:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(docker exec code-runner-mcp-sandbox-server-1 sh -c 'echo \"\"Container can access docker:\"\" && docker images | grep runner || echo \"\"No docker access\"\"')",
+      "Bash(docker rmi:*)",
+      "Bash(go build:*)",
+      "Bash(docker build:*)",
+      "Bash(docker exec:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,24 @@
+services:
+  mcp-sandbox-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${MCP_HTTP_ADDR:-8080}:8080"
+    environment:
+      - MCP_HTTP_ADDR=:8080
+      - MCP_API_TOKEN=${MCP_API_TOKEN}
+      # SANDBOX_ROOT: Path inside server container for file operations
+      - SANDBOX_ROOT=/var/sandboxes
+      # SANDBOX_HOST_PATH: Path on Docker host for runner bind mounts (Docker-in-Docker)
+      # Must be absolute path as seen by Docker daemon on host
+      - SANDBOX_HOST_PATH=${PWD}/sandbox-data
+      - FILE_SECRET=${FILE_SECRET}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://localhost:8080}
+    volumes:
+      # Mount Docker socket to allow container to manage other containers (Docker-in-Docker)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount sandbox data: host path -> server container path
+      # Server uses /var/sandboxes, but runners bind to ${PWD}/sandbox-data from host
+      - ${PWD}/sandbox-data:/var/sandboxes
+    restart: unless-stopped

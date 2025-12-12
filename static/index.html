@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Code Sandbox Server</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #151a28;
+            --bg-tertiary: #1e2637;
+            --border-color: #2a3447;
+            --text-primary: #e4e7eb;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 24px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            margin-bottom: 32px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            letter-spacing: -0.025em;
+        }
+
+        .header p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .card h2 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            letter-spacing: -0.025em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            background: var(--bg-secondary);
+        }
+
+        input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .output {
+            margin-top: 20px;
+            padding: 16px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            border-left: 3px solid var(--accent-primary);
+            display: none;
+        }
+
+        .output.show {
+            display: block;
+        }
+
+        .output.error {
+            border-left-color: var(--error);
+        }
+
+        .output.success {
+            border-left-color: var(--success);
+        }
+
+        .output h3 {
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .output pre {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 16px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8125rem;
+            line-height: 1.6;
+            border: 1px solid var(--border-color);
+        }
+
+        .files {
+            margin-top: 16px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .file-item:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .file-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .file-link {
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .file-link:hover {
+            color: #2563eb;
+        }
+
+        .examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .example-btn {
+            padding: 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+
+        .example-btn:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-secondary);
+        }
+
+        .example-btn h4 {
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .example-btn p {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,.2);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-badge.online {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .status-badge.offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+
+        .CodeMirror {
+            height: 360px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.8125rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .CodeMirror-focused {
+            border-color: var(--accent-primary);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .env-var-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .env-var-row input {
+            margin-bottom: 0;
+        }
+
+        .env-var-remove {
+            background: transparent;
+            color: var(--error);
+            border: 1px solid var(--border-color);
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .env-var-remove:hover {
+            background: var(--error);
+            color: white;
+            border-color: var(--error);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>MCP Code Sandbox Server</h1>
+        </div>
+
+        <div class="card">
+            <h2>Code Execution</h2>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="conversationId">Session ID</label>
+                    <input type="text" id="conversationId" placeholder="web-test" value="web-test">
+                </div>
+
+                <div class="form-group">
+                    <label for="language">Runtime</label>
+                    <select id="language">
+                        <option value="python">Python</option>
+                        <option value="typescript">TypeScript</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: center; cursor: pointer; text-transform: none;">
+                    <input type="checkbox" id="networkEnabled" style="width: auto; margin-right: 8px;">
+                    <span>Enable Network Access (required for external API calls)</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label for="envVars">Environment Variables (optional)</label>
+                <div id="envVars" style="margin-bottom: 8px;"></div>
+                <button type="button" class="btn" onclick="addEnvVar()" style="background: var(--bg-tertiary); color: var(--text-secondary); font-size: 0.75rem; padding: 8px 16px;">
+                    + Add Variable
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label for="code">Source Code</label>
+                <textarea id="code" placeholder="Enter your code here...">print("Hello from Python!")
+with open("/data/hello.txt", "w") as f:
+    f.write("Hello, World!")</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="apiToken">API Token</label>
+                <input type="password" id="apiToken" placeholder="MCP_API_TOKEN">
+            </div>
+
+            <button class="btn" onclick="runCode()">
+                <span id="btnText">Execute</span>
+            </button>
+
+            <div id="output" class="output"></div>
+        </div>
+
+        <div class="card">
+            <h2>Code Examples</h2>
+            <div class="examples">
+                <div class="example-btn" onclick="loadExample('python-hello')">
+                    <h4>Python / Hello World</h4>
+                    <p>Basic output and file operations</p>
+                </div>
+                <div class="example-btn" onclick="loadExample('python-data')">
+                    <h4>Python / Data Analysis</h4>
+                    <p>Pandas DataFrame and CSV export</p>
+                </div>
+                <div class="example-btn" onclick="loadExample('python-github')">
+                    <h4>Python / GitHub Analysis</h4>
+                    <p>Fetch page, analyze text, generate pie chart</p>
+                </div>
+                <div class="example-btn" onclick="loadExample('python-env')">
+                    <h4>Python / Environment Variables</h4>
+                    <p>Demonstrates using env vars for API keys</p>
+                </div>
+                <div class="example-btn" onclick="loadExample('typescript-hello')">
+                    <h4>TypeScript / Hello World</h4>
+                    <p>Console logging and JSON file creation</p>
+                </div>
+                <div class="example-btn" onclick="loadExample('typescript-math')">
+                    <h4>TypeScript / Fibonacci</h4>
+                    <p>Algorithm implementation and data output</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize CodeMirror editor
+        let editor;
+        document.addEventListener('DOMContentLoaded', function() {
+            const textarea = document.getElementById('code');
+            editor = CodeMirror.fromTextArea(textarea, {
+                lineNumbers: true,
+                mode: 'python',
+                theme: 'monokai',
+                indentUnit: 4,
+                tabSize: 4,
+                indentWithTabs: false,
+                lineWrapping: true
+            });
+
+            // Update mode when language changes
+            document.getElementById('language').addEventListener('change', function() {
+                const mode = this.value === 'python' ? 'python' : 'javascript';
+                editor.setOption('mode', mode);
+            });
+        });
+
+        const examples = {
+            'python-hello': {
+                language: 'python',
+                code: `print("Hello from Python!")
+print("Python version:", __import__('sys').version)
+
+# Write to file
+with open("/data/hello.txt", "w") as f:
+    f.write("Hello, World!")
+
+print("File created: hello.txt")`
+            },
+            'python-data': {
+                language: 'python',
+                code: `import pandas as pd
+import numpy as np
+
+# Generate sample data
+data = {
+    'Name': ['Alice', 'Bob', 'Charlie', 'David'],
+    'Age': [25, 30, 35, 28],
+    'Score': [85.5, 92.3, 78.9, 88.1]
+}
+
+df = pd.DataFrame(data)
+print("DataFrame created:")
+print(df)
+
+# Save to CSV
+df.to_csv('/data/results.csv', index=False)
+print("\\nSaved to results.csv")
+
+# Calculate statistics
+print("\\nStatistics:")
+print(df.describe())`
+            },
+            'python-github': {
+                language: 'python',
+                code: `import requests
+import matplotlib.pyplot as plt
+
+# Fetch GitHub's homepage
+print("Fetching GitHub homepage...")
+response = requests.get('https://github.com')
+html_content = response.text
+
+# Split into lines and analyze
+lines = html_content.split('\\n')
+total_lines = len(lines)
+
+# Count lines containing "the" (case-insensitive)
+lines_with_the = sum(1 for line in lines if 'the' in line.lower())
+lines_without_the = total_lines - lines_with_the
+
+print(f"Total lines: {total_lines}")
+print(f"Lines with 'the': {lines_with_the}")
+print(f"Lines without 'the': {lines_without_the}")
+
+# Create pie chart
+plt.figure(figsize=(10, 8))
+colors = ['#00D9FF', '#FF006E']
+explode = (0.05, 0)  # Explode first slice
+
+plt.pie(
+    [lines_with_the, lines_without_the],
+    labels=[f'Contains "the"\\n({lines_with_the} lines)', f'No "the"\\n({lines_without_the} lines)'],
+    autopct='%1.1f%%',
+    startangle=90,
+    colors=colors,
+    explode=explode,
+    shadow=True,
+    textprops={'fontsize': 14, 'weight': 'bold'}
+)
+
+plt.title('GitHub Homepage: Lines Containing "the"', fontsize=18, weight='bold', pad=20)
+plt.axis('equal')
+
+# Save to file
+plt.savefig('/data/github_analysis.png', dpi=150, bbox_inches='tight')
+print("\\nPie chart saved to github_analysis.png")
+
+# Save detailed stats
+with open('/data/analysis.txt', 'w') as f:
+    f.write(f"GitHub Homepage Analysis\\n")
+    f.write(f"========================\\n\\n")
+    f.write(f"Total lines: {total_lines}\\n")
+    f.write(f"Lines containing 'the': {lines_with_the} ({lines_with_the/total_lines*100:.1f}%)\\n")
+    f.write(f"Lines without 'the': {lines_without_the} ({lines_without_the/total_lines*100:.1f}%)\\n")
+
+print("Analysis complete!")`
+            },
+            'python-env': {
+                language: 'python',
+                network: true,
+                env: {
+                    'API_KEY': 'your-secret-api-key-here',
+                    'API_URL': 'https://api.example.com',
+                    'DEBUG': 'true'
+                },
+                code: `import os
+
+# Read environment variables
+api_key = os.environ.get('API_KEY', 'not-set')
+api_url = os.environ.get('API_URL', 'not-set')
+debug = os.environ.get('DEBUG', 'false')
+
+print("Environment Variables Demo")
+print("=" * 40)
+print(f"API_KEY: {api_key}")
+print(f"API_URL: {api_url}")
+print(f"DEBUG: {debug}")
+print()
+
+# Use environment variables in your code
+if debug == 'true':
+    print("Debug mode is enabled!")
+
+# Example: simulated API call with the key
+print(f"Would make API call to: {api_url}")
+print(f"Using API key: {api_key[:10]}..." if len(api_key) > 10 else f"Using API key: {api_key}")
+
+# Save configuration to file
+config = {
+    'api_url': api_url,
+    'debug_mode': debug == 'true',
+    'has_api_key': api_key != 'not-set'
+}
+
+with open('/data/config.txt', 'w') as f:
+    for key, value in config.items():
+        f.write(f"{key}: {value}\\n")
+
+print("\\nConfiguration saved to config.txt")
+print("\\nTip: Set environment variables above before running!")`
+            },
+            'typescript-hello': {
+                language: 'typescript',
+                code: `console.log("Hello from TypeScript!");
+console.log("Node version:", process.version);
+
+// Write JSON file
+const data = {
+    message: "Hello, World!",
+    timestamp: new Date().toISOString(),
+    platform: process.platform
+};
+
+require('fs').writeFileSync('/data/output.json', JSON.stringify(data, null, 2));
+console.log("File created: output.json");
+console.log("Data:", data);`
+            },
+            'typescript-math': {
+                language: 'typescript',
+                code: `// Calculate Fibonacci numbers
+function fibonacci(n: number): number[] {
+    const fib = [0, 1];
+    for (let i = 2; i < n; i++) {
+        fib[i] = fib[i - 1] + fib[i - 2];
+    }
+    return fib;
+}
+
+const numbers = fibonacci(10);
+console.log("Fibonacci sequence:", numbers);
+
+// Save to file
+const fs = require('fs');
+const result = {
+    sequence: numbers,
+    sum: numbers.reduce((a, b) => a + b, 0),
+    count: numbers.length
+};
+
+fs.writeFileSync('/data/fibonacci.json', JSON.stringify(result, null, 2));
+console.log("\\nResults saved to fibonacci.json");
+console.log("Sum:", result.sum);`
+            }
+        };
+
+        function loadExample(exampleId) {
+            const example = examples[exampleId];
+            if (example) {
+                document.getElementById('language').value = example.language;
+                editor.setValue(example.code);
+                const mode = example.language === 'python' ? 'python' : 'javascript';
+                editor.setOption('mode', mode);
+
+                // Set network checkbox
+                document.getElementById('networkEnabled').checked = example.network || false;
+
+                // Clear existing environment variables
+                document.getElementById('envVars').innerHTML = '';
+                envVarCounter = 0;
+
+                // Add environment variables if present
+                if (example.env) {
+                    for (const [key, value] of Object.entries(example.env)) {
+                        addEnvVar(key, value);
+                    }
+                }
+            }
+        }
+
+        let envVarCounter = 0;
+
+        function addEnvVar(key = '', value = '') {
+            const container = document.getElementById('envVars');
+            const id = envVarCounter++;
+
+            const row = document.createElement('div');
+            row.className = 'env-var-row';
+            row.id = `env-var-${id}`;
+            row.innerHTML = `
+                <input type="text" placeholder="KEY" class="env-key" value="${escapeHtml(key)}">
+                <input type="text" placeholder="value" class="env-value" value="${escapeHtml(value)}">
+                <button type="button" class="env-var-remove" onclick="removeEnvVar(${id})">✕</button>
+            `;
+
+            container.appendChild(row);
+        }
+
+        function removeEnvVar(id) {
+            const row = document.getElementById(`env-var-${id}`);
+            if (row) {
+                row.remove();
+            }
+        }
+
+        function getEnvironmentVariables() {
+            const envVars = {};
+            const rows = document.querySelectorAll('.env-var-row');
+
+            rows.forEach(row => {
+                const key = row.querySelector('.env-key').value.trim();
+                const value = row.querySelector('.env-value').value;
+
+                if (key) { // Only include if key is not empty
+                    envVars[key] = value;
+                }
+            });
+
+            return Object.keys(envVars).length > 0 ? envVars : null;
+        }
+
+        async function runCode() {
+            const conversationId = document.getElementById('conversationId').value;
+            const language = document.getElementById('language').value;
+            const code = editor.getValue();
+            const apiToken = document.getElementById('apiToken').value;
+            const networkEnabled = document.getElementById('networkEnabled').checked;
+            const environment = getEnvironmentVariables();
+
+            if (!conversationId || !code || !apiToken) {
+                alert('Please fill in all fields including API token');
+                return;
+            }
+
+            const btn = document.querySelector('.btn');
+            const btnText = document.getElementById('btnText');
+            const output = document.getElementById('output');
+
+            btn.disabled = true;
+            btnText.innerHTML = 'Running... <span class="loader"></span>';
+            output.className = 'output';
+            output.innerHTML = '';
+
+            try {
+                // Build arguments object
+                const args = {
+                    conversationId,
+                    language,
+                    code,
+                    network: networkEnabled
+                };
+
+                // Add environment variables if present
+                if (environment) {
+                    args.environment = environment;
+                }
+
+                const response = await fetch('/mcp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiToken}`
+                    },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        id: Date.now().toString(),
+                        method: 'tools/call',
+                        params: {
+                            name: 'sandbox.run_code',
+                            arguments: args
+                        }
+                    })
+                });
+
+                // Handle HTTP errors (401, etc.)
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: response.statusText }));
+                    showError(`Authentication failed: ${errorData.error || 'Invalid API token'}`);
+                    return;
+                }
+
+                const result = await response.json();
+
+                if (result.error) {
+                    showError(`Error: ${result.error.message || result.error}`);
+                } else if (result.result) {
+                    const data = result.result.content[0].data;
+                    showResult(data);
+                } else {
+                    showError('Unexpected response format');
+                }
+            } catch (error) {
+                showError(`Request failed: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = 'Run Code';
+            }
+        }
+
+        function showResult(data) {
+            const output = document.getElementById('output');
+            output.className = 'output show ' + (data.success ? 'success' : 'error');
+
+            let html = `
+                <span class="status-badge ${data.success ? 'online' : 'offline'}">
+                    ${data.success ? 'Success' : 'Failed'}
+                </span>
+                <h3>Output</h3>
+                <pre>${escapeHtml(data.output)}</pre>
+            `;
+
+            if (data.files && data.files.length > 0) {
+                html += '<div class="files"><h3>Generated Files</h3>';
+                data.files.forEach(file => {
+                    html += `
+                        <div class="file-item">
+                            <span class="file-name">${escapeHtml(file.name)}</span>
+                            <a href="${escapeHtml(file.url)}" class="file-link" target="_blank">Download</a>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            output.innerHTML = html;
+        }
+
+        function showError(message) {
+            const output = document.getElementById('output');
+            output.className = 'output show error';
+            output.innerHTML = `
+                <span class="status-badge offline">Error</span>
+                <h3>Details</h3>
+                <pre>${escapeHtml(message)}</pre>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load Python hello example by default after CodeMirror is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => loadExample('python-hello'), 100);
+        });
+    </script>
+</body>
+</html>

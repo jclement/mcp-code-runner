@@ -1,0 +1,35 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Environment files
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sandbox data
+/tmp/
+sandboxes/
+sandbox-data/
+
+# Build artifacts
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,65 @@
+FROM python:3.12-alpine
+
+# Add labels for runner discovery
+LABEL sandbox.runner=true
+LABEL sandbox.language=python
+
+# Create non-root user for security
+RUN adduser -D -u 1000 sandbox
+
+# Create directories
+RUN mkdir -p /data /tmp && \
+    chown sandbox:sandbox /data /tmp
+
+# Install runtime dependencies (keep these)
+RUN apk add --no-cache \
+    libstdc++ \
+    freetype \
+    libpng \
+    postgresql-libs \
+    sqlite-libs \
+    su-exec
+
+# Install build dependencies temporarily
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    musl-dev \
+    g++ \
+    freetype-dev \
+    libpng-dev \
+    postgresql-dev
+
+# Install common Python packages that might be useful
+RUN pip install --no-cache-dir \
+    requests \
+    numpy \
+    pandas \
+    matplotlib \
+    psycopg2
+
+# Clean up build dependencies to reduce image size (keep runtime libs)
+RUN apk del .build-deps
+
+# Create runner script inline
+RUN cat > /usr/local/bin/runner.sh <<'EOF'
+#!/bin/sh
+set -e
+
+# Fix ownership of /data volume (runs as root initially)
+chown -R 1000:1000 /data 2>/dev/null || true
+
+# Drop to non-root user and read code from stdin
+su-exec 1000:1000 sh -c '
+  cat > /tmp/script.py
+  cd /data
+  exec python /tmp/script.py
+'
+EOF
+
+RUN chmod +x /usr/local/bin/runner.sh
+
+# Set working directory
+WORKDIR /data
+
+# Entrypoint (runs as root initially to fix permissions)
+ENTRYPOINT ["/usr/local/bin/runner.sh"]

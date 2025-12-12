@@ -1,0 +1,43 @@
+FROM oven/bun:1-alpine
+
+# Add labels for runner discovery
+LABEL sandbox.runner=true
+LABEL sandbox.language=typescript
+
+# Bun alpine images come with 'bun' user (UID 1000)
+# Create directories and set ownership
+RUN mkdir -p /data /tmp && \
+    chown -R bun:bun /data /tmp
+
+# Install runtime dependencies for database libraries
+RUN apk add --no-cache \
+    postgresql-libs \
+    sqlite-libs \
+    su-exec
+
+# Install database and CSV packages
+RUN bun add -g postgres pg csv-parser papaparse
+
+# Create runner script inline
+RUN cat > /usr/local/bin/runner.sh <<'EOF'
+#!/bin/sh
+set -e
+
+# Fix ownership of /data volume (runs as root initially)
+chown -R 1000:1000 /data 2>/dev/null || true
+
+# Drop to non-root user and read code from stdin
+su-exec 1000:1000 sh -c '
+  cat > /tmp/script.ts
+  cd /data
+  exec bun run /tmp/script.ts
+'
+EOF
+
+RUN chmod +x /usr/local/bin/runner.sh
+
+# Set working directory
+WORKDIR /data
+
+# Entrypoint (runs as root initially to fix permissions)
+ENTRYPOINT ["/usr/local/bin/runner.sh"]
