@@ -756,7 +756,7 @@ console.log("Sum:", result.sum);`
                         id: Date.now().toString(),
                         method: 'tools/call',
                         params: {
-                            name: 'sandbox.run_code',
+                            name: 'run_code',
                             arguments: args
                         }
                     })
@@ -774,7 +774,9 @@ console.log("Sum:", result.sum);`
                 if (result.error) {
                     showError(`Error: ${result.error.message || result.error}`);
                 } else if (result.result) {
-                    const data = result.result.content[0].data;
+                    // Parse the text content from MCP response
+                    const textContent = result.result.content[0].text;
+                    const data = JSON.parse(textContent);
                     showResult(data);
                 } else {
                     showError('Unexpected response format');

@@ -1,229 +1,252 @@
 # MCP Code Sandbox Server
 
-An MCP-compatible HTTP + SSE server that executes Python and TypeScript code in sandboxed Docker containers with per-conversation persistent storage. Powered by Bun for blazing-fast TypeScript execution.
+A Model Context Protocol (MCP) compatible HTTP server that executes Python and TypeScript code in isolated Docker containers with persistent file storage.
 
-## Features
+## Overview
 
-- **MCP JSON-RPC 2.0 API** - Standard protocol for AI assistants like Claude and ChatGPT
-- **Multi-language support** - Python 3.11 and TypeScript/JavaScript (Bun runtime), extensible to other languages
-- **Sandboxed execution** - Each code snippet runs in an isolated Docker container
-- **Persistent storage** - Per-conversation `/data` directory for file I/O
-- **Signed file URLs** - Secure HMAC-signed download links for generated files
-- **Network isolation** - Containers run without network access for security
-- **Resource limits** - CPU and memory constraints to prevent abuse
-- **Web Interface** - Interactive browser UI for testing and development
+This server implements the [MCP specification](https://spec.modelcontextprotocol.io/) (version 2024-11-05) using HTTP with Server-Sent Events (SSE) transport. It provides secure, sandboxed code execution for AI assistants like Claude, allowing them to run code and generate files that persist across executions.
+
+**Key Features:**
+- 🔒 **Secure sandboxing** - Code runs in isolated Docker containers with no network access
+- 🗂️ **Persistent storage** - Files created in `/data` persist across executions per conversation
+- 📦 **Multi-language** - Python and TypeScript/JavaScript support out of the box
+- 🔐 **Authentication** - Bearer token auth with hashed directory security
+- 📤 **File uploads** - Upload data files for analysis before code execution
+- ⚡ **Fast TypeScript** - Powered by Bun for 4x faster startup than Node.js
 
 ## Quick Start
 
-### Option 1: Using Pre-built Images (Fastest)
+### Option 1: Using Start Script (Recommended)
 
 ```bash
-# Clone repository
+# Clone and setup
 git clone <repo-url>
 cd code-runner
 
-# Set your GitHub username
-export GITHUB_USER=jsc
+# Build and start
+./start.sh
 
-# Copy example .env file
+# Server will be available at http://localhost:8080
+```
+
+The `start.sh` script automatically:
+- Loads configuration from `.env`
+- Creates sandbox directories
+- Checks Docker connectivity
+- Builds runner images if needed
+- Starts the server
+
+### Option 2: Docker Compose
+
+```bash
+# Clone and setup
+git clone <repo-url>
+cd code-runner
+
+# Copy environment template
 cp .env.example .env
-# Edit .env and set your tokens
+# Edit .env with your tokens
 
-# Start with pre-built GHCR images
-docker compose -f docker-compose.ghcr.yml up -d
-
-# Open browser
-open http://localhost:8080
-```
-
-See [GHCR_USAGE.md](GHCR_USAGE.md) for detailed instructions on using pre-built images.
-
-### Option 2: Building Locally
-
-```bash
-# Clone and enter directory
-git clone <repo-url>
-cd code-runner
-
-# Run quick start script (builds images, generates tokens, creates .env)
-./quickstart.sh
-
-# Start with Docker Compose
-docker-compose up -d
-
-# Open browser
-open http://localhost:8080
-```
-
-The quickstart script will:
-- Build all Docker images (Python, TypeScript, server)
-- Generate secure random API tokens
-- Create a `.env` file with your configuration
-
-## Architecture
-
-### Components
-
-- **HTTP Server** - Handles MCP JSON-RPC requests and file downloads
-- **Runner Registry** - Auto-discovers available language runners from Docker images
-- **Container Executor** - Manages Docker container lifecycle for code execution
-- **Sandbox Manager** - Handles filesystem layout for conversation-specific storage
-- **File Signer** - Generates and validates HMAC-signed download URLs
-
-### Filesystem Layout
-
-```
-<SANDBOX_ROOT>/
-  <conversationId>/
-    files/          # Mounted as /data in containers
-```
-
-### Runner Images
-
-Runner images are Docker containers labeled with:
-- `sandbox.runner=true`
-- `sandbox.language=<language>` (e.g., `python`, `typescript`)
-
-Each runner:
-1. Reads code from STDIN
-2. Writes it to a temp file
-3. Executes it with the appropriate runtime in `/data` (Python or Bun)
-4. Returns stdout/stderr
-
-**Why Bun?** TypeScript runner uses Bun instead of Node.js for 4x faster startup, 50% smaller images, and native TypeScript support without transpilation.
-
-## Installation
-
-### Prerequisites
-
-- Go 1.21+
-- Docker
-- Unix-like system (Linux, macOS)
-
-### Build
-
-```bash
-# Clone repository
-git clone <repo-url>
-cd code-runner
-
-# Build everything (runner images + server binary)
+# Build runner images
 ./build.sh
-```
 
-This creates:
-- Docker images:
-  - `runner-python` - Python 3.11 with numpy, pandas, requests (~180MB)
-  - `runner-typescript` - Bun runtime for TypeScript/JavaScript (~90MB)
-  - `mcp-sandbox-server` - Go server binary (~20MB)
-- Server binary: `bin/mcp-sandbox-server`
-
-## Configuration
-
-Copy the example environment file and edit it:
-
-```bash
-cp .env.example .env
-```
-
-Required environment variables:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `MCP_HTTP_ADDR` | Server bind address | `:8080` |
-| `MCP_API_TOKEN` | Bearer token for authentication | `secret-token-123` |
-| `SANDBOX_ROOT` | Root directory inside container | `/var/sandboxes` |
-| `FILE_SECRET` | Secret for signing file URLs | `signing-secret-456` |
-| `PUBLIC_BASE_URL` | Public URL of the server | `http://localhost:8080` |
-| `SANDBOX_DATA_DIR` | Host directory for sandbox data (Docker Compose) | `./sandbox-data` |
-| `TUNNEL_TOKEN` | Cloudflare tunnel token (optional) | Only needed for Cloudflare deployment |
-| `DOCKER_HOST` | Docker socket (optional) | `unix:///var/run/docker.sock` |
-
-**Notes:**
-- For production, generate secure random values for `MCP_API_TOKEN` and `FILE_SECRET`
-- `SANDBOX_DATA_DIR` controls where sandbox files are stored on your host machine (defaults to `./sandbox-data`)
-- `SANDBOX_ROOT` is the path inside the container (always `/var/sandboxes`)
-
-## Usage
-
-### Starting the Server
-
-#### Option 1: Docker Compose (Recommended)
-
-**Local Development:**
-```bash
-# Start the server
+# Start server
 docker-compose up -d
 
 # View logs
 docker-compose logs -f
-
-# Stop the server
-docker-compose down
 ```
 
-**With Cloudflare Tunnel:**
-```bash
-# Make sure TUNNEL_TOKEN is set in .env
-docker-compose -f docker-compose-cloudflare.yml up -d
-
-# View logs
-docker-compose -f docker-compose-cloudflare.yml logs -f
-
-# Stop the server
-docker-compose -f docker-compose-cloudflare.yml down
-```
-
-#### Option 2: Binary (Local Development)
+### Option 3: Direct Binary
 
 ```bash
-# Export environment variables
-export $(cat .env | xargs)
+# Build
+go build -o mcp-code-sandbox ./cmd/server
 
-# Run server
-./bin/mcp-sandbox-server
+# Run with environment variables
+source .env
+./mcp-code-sandbox
 ```
 
-Or with environment inline:
+## Architecture
+
+### System Design
+
+```
+┌─────────────────────────────────────────┐
+│  MCP Client (Claude, n8n, etc.)        │
+└───────────────┬─────────────────────────┘
+                │ HTTPS + Bearer Token
+                │ JSON-RPC 2.0
+                ▼
+┌─────────────────────────────────────────┐
+│  MCP Server (Go)                        │
+│  - HTTP + SSE Transport                 │
+│  - Tools: upload_file, run_code         │
+│  - Hashed directory security            │
+└───────────────┬─────────────────────────┘
+                │ Docker API
+                ▼
+┌─────────────────────────────────────────┐
+│  Runner Containers (ephemeral)          │
+│  - Python 3.12 (numpy, pandas, etc.)    │
+│  - TypeScript/Bun (postgres, csv, etc.) │
+│  - Bind mount: /data → sandbox dir      │
+└─────────────────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────┐
+│  Sandbox Filesystem                     │
+│  /sandboxes/                            │
+│    └── {SHA256(conversationId+secret)}/ │
+│        ├── data.csv (uploaded)          │
+│        └── plot.png (generated)         │
+└─────────────────────────────────────────┘
+```
+
+### Components
+
+1. **HTTP Server** - Handles MCP JSON-RPC requests (POST) and SSE streams (GET)
+2. **Runner Registry** - Auto-discovers available language runners via Docker labels
+3. **Container Executor** - Manages Docker container lifecycle with resource limits
+4. **Sandbox Manager** - Handles per-conversation filesystem isolation with hashed directories
+5. **Authentication** - Bearer token middleware for API security
+
+### How Code Execution Works
+
+1. Client uploads data file via `upload_file` tool (optional)
+2. Client calls `run_code` tool with language and code
+3. Server creates hashed sandbox directory for conversation
+4. Server spins up ephemeral runner container with `/data` bind mount
+5. Container executes code as non-root user (UID 1000)
+6. Server lists files in sandbox and returns URLs
+7. Client can download files via public URLs (no auth needed - security via hash)
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file (or copy `.env.example`):
 
 ```bash
-MCP_HTTP_ADDR=:8080 \
-MCP_API_TOKEN=your-token \
-SANDBOX_ROOT=/tmp/sandboxes \
-FILE_SECRET=your-secret \
-PUBLIC_BASE_URL=http://localhost:8080 \
-./bin/mcp-sandbox-server
+# HTTP server
+MCP_HTTP_ADDR=:8080
+PUBLIC_BASE_URL=http://localhost:8080
+
+# Authentication
+MCP_API_TOKEN=your-secret-token-here
+
+# Sandbox filesystem
+SANDBOX_ROOT=/var/sandboxes          # Path inside server container
+SANDBOX_HOST_PATH=/tmp/sandboxes     # Actual host path for Docker bind mounts
+FILE_SECRET=your-file-signing-secret # Used for hashing conversation IDs
+
+# Optional: Cloudflare Tunnel
+TUNNEL_TOKEN=                        # Leave empty if not using Cloudflare
 ```
 
-### Web Interface
+**Important Configuration Notes:**
 
-Once the server is running, open your browser to:
+- **`SANDBOX_ROOT`** - Path from the server's perspective (container or process)
+- **`SANDBOX_HOST_PATH`** - Absolute path on the Docker host for bind mounts
+  - When running server directly: Same as `SANDBOX_ROOT`
+  - When running in Docker: Must point to actual host path
+  - Example: Server in container sees `/var/sandboxes`, but mounts `/home/user/sandboxes` from host
+- **`FILE_SECRET`** - Used to hash conversation IDs into directory names. Must be:
+  - At least 32 characters
+  - Randomly generated: `openssl rand -base64 32`
+  - Kept secret - protects file access
+- **`MCP_API_TOKEN`** - Bearer token for API authentication. Generate with: `openssl rand -hex 32`
 
+### Dual-Path Architecture
+
+The server uses a dual-path system to support both:
+1. Direct execution (server process accesses local filesystem)
+2. Docker Compose deployment (server in container, runners in sibling containers)
+
+**Example: Docker Compose**
+```yaml
+# Server container
+environment:
+  SANDBOX_ROOT: /var/sandboxes              # Server's view
+  SANDBOX_HOST_PATH: /host/sandbox-data     # Host's actual path
+
+volumes:
+  - ./sandbox-data:/var/sandboxes           # Mount host dir into server
+  # Server will tell runners to mount: /host/sandbox-data:/data
 ```
-http://localhost:8080
+
+**Example: Direct Execution**
+```bash
+# Both paths are the same
+SANDBOX_ROOT=/tmp/sandboxes
+SANDBOX_HOST_PATH=/tmp/sandboxes
 ```
 
-You'll see an interactive web interface where you can:
-- Test code execution in Python or TypeScript
-- Try pre-built examples (data analysis, file I/O, etc.)
-- View execution output and generated files
-- Download files directly from the browser
+## MCP Protocol
 
-**Note:** You'll need to enter your `MCP_API_TOKEN` in the web interface to authenticate.
+### Transport
 
-### API Endpoints
+The server implements **HTTP with SSE** transport (single endpoint):
+- **POST `/mcp`** - Send JSON-RPC requests, receive JSON responses
+- **GET `/mcp`** - Establish SSE stream for server-initiated messages
 
-#### GET /
+### Authentication
 
-Web interface for testing the sandbox server (no authentication required).
+All `/mcp` requests require:
+```
+Authorization: Bearer <MCP_API_TOKEN>
+```
 
-#### POST /mcp
+### Methods
 
-JSON-RPC 2.0 endpoint for tool calls.
+#### `initialize` - MCP Handshake
 
-Requires `Authorization: Bearer <MCP_API_TOKEN>` header.
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "clientInfo": {"name": "client", "version": "1.0"}
+  }
+}
+```
 
-**Example: Run Python Code**
+Response includes server capabilities (tools).
+
+#### `tools/list` - List Available Tools
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list"
+}
+```
+
+Returns three tools:
+- `upload_file` - Upload data files to sandbox
+- `run_code` - Execute code in sandboxed container
+- `list_runners` - List available language runners
+
+#### `tools/call` - Execute a Tool
+
+See "Tools" section below for detailed examples.
+
+## Tools
+
+### `upload_file`
+
+Upload a file to the conversation's sandbox before running code.
+
+**Arguments:**
+- `conversationId` (string) - Unique conversation identifier
+- `filename` (string) - Name of file to create (e.g., `data.csv`)
+- `content` (string) - Base64-encoded file content
+
+**Example:**
 
 ```bash
 curl -X POST http://localhost:8080/mcp \
@@ -231,14 +254,14 @@ curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
-    "id": "1",
+    "id": 1,
     "method": "tools/call",
     "params": {
-      "name": "sandbox.run_code",
+      "name": "upload_file",
       "arguments": {
-        "conversationId": "conv-123",
-        "language": "python",
-        "code": "print(\"Hello, World!\")\nwith open(\"/data/output.txt\", \"w\") as f:\n    f.write(\"test\")"
+        "conversationId": "session-123",
+        "filename": "data.csv",
+        "content": "bmFtZSxhZ2UKQWxpY2UsMzAKQm9iLDI1"
       }
     }
   }'
@@ -249,28 +272,32 @@ curl -X POST http://localhost:8080/mcp \
 ```json
 {
   "jsonrpc": "2.0",
-  "id": "1",
+  "id": 1,
   "result": {
-    "content": [
-      {
-        "type": "output",
-        "data": {
-          "success": true,
-          "output": "Hello, World!\n",
-          "files": [
-            {
-              "name": "output.txt",
-              "url": "http://localhost:8080/files/conv-123/output.txt?sig=abc123..."
-            }
-          ]
-        }
-      }
-    ]
+    "content": [{
+      "type": "text",
+      "text": "{\"success\":true,\"message\":\"File 'data.csv' uploaded successfully (18 bytes)\",\"file\":{\"name\":\"data.csv\",\"url\":\"http://localhost:8080/files/abc123.../data.csv\"}}"
+    }]
   }
 }
 ```
 
-**Example: List Available Runners**
+### `run_code`
+
+Execute code in a sandboxed Docker container.
+
+**Arguments:**
+- `conversationId` (string) - Unique conversation identifier
+- `language` (string) - Language to execute: `python` or `typescript`
+- `code` (string) - Source code to execute
+- `network` (boolean, optional) - Enable network access (default: false)
+- `environment` (object, optional) - Environment variables (e.g., API keys)
+
+**Available Libraries:**
+- **Python**: `requests`, `numpy`, `pandas`, `matplotlib`, `psycopg2`
+- **TypeScript**: `postgres`, `pg`, `csv-parser`, `papaparse`
+
+**Example: Python Data Analysis**
 
 ```bash
 curl -X POST http://localhost:8080/mcp \
@@ -278,189 +305,331 @@ curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
-    "id": "2",
+    "id": 2,
     "method": "tools/call",
     "params": {
-      "name": "sandbox.list_runners"
+      "name": "run_code",
+      "arguments": {
+        "conversationId": "session-123",
+        "language": "python",
+        "code": "import pandas as pd\nimport matplotlib.pyplot as plt\n\ndf = pd.read_csv(\"/data/data.csv\")\nprint(df.describe())\n\nplt.bar(df[\"name\"], df[\"age\"])\nplt.savefig(\"/data/chart.png\")\nprint(\"Chart saved!\")"
+      }
     }
   }'
 ```
 
-#### GET /mcp/events
+**Response:**
 
-SSE endpoint for notifications (v1 stub).
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "content": [{
+      "type": "text",
+      "text": "{\"success\":true,\"output\":\"       age\\ncount   2.0\\nmean   27.5\\n...\\nChart saved!\\n\",\"files\":[{\"name\":\"data.csv\",\"url\":\"...\"},{\"name\":\"chart.png\",\"url\":\"...\"}]}"
+    }]
+  }
+}
+```
 
-Requires `Authorization: Bearer <MCP_API_TOKEN>` header.
+**Example: TypeScript with Network Access**
 
-#### GET /files/{conversationId}/{filename}?sig={signature}
+```bash
+curl -X POST http://localhost:8080/mcp \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "run_code",
+      "arguments": {
+        "conversationId": "session-123",
+        "language": "typescript",
+        "network": true,
+        "code": "const response = await fetch(\"https://api.example.com/data\");\nconst data = await response.json();\nconsole.log(data);\n\nconst fs = require(\"fs\");\nfs.writeFileSync(\"/data/result.json\", JSON.stringify(data, null, 2));"
+      }
+    }
+  }'
+```
 
-Download files with signed URLs. No authentication header required.
+### `list_runners`
 
-### Tools
+List available language runners and their Docker images.
 
-#### sandbox.run_code
+**Example:**
 
-Executes code in a sandboxed container.
-
-**Arguments:**
-- `conversationId` (string, required) - Unique conversation identifier
-- `language` (string, required) - Language to execute (`python`, `typescript`)
-- `code` (string, required) - Source code to execute
-
-**Returns:**
-- `success` (boolean) - Whether execution succeeded
-- `output` (string) - Combined stdout/stderr
-- `files` (array) - List of files in `/data` with signed download URLs
-
-#### sandbox.list_runners
-
-Lists available language runners.
-
-**Returns:**
-- `languages` (array) - Available runners with language and image name
+```bash
+curl -X POST http://localhost:8080/mcp \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "tools/call",
+    "params": {
+      "name": "list_runners"
+    }
+  }'
+```
 
 ## Security
 
 ### Container Isolation
 
-- **No network access** - Containers run with `NetworkDisabled: true`
-- **Non-root user** - Runners execute as non-root users (Python: `sandbox`, TypeScript: `bun`, both UID 1000)
-- **Resource limits** - 0.5 CPU cores, 256MB RAM per container
-- **Execution timeout** - 30 seconds maximum
-- **Minimal images** - Alpine-based for smaller attack surface
+**Network Isolation:**
+- Containers run with `NetworkDisabled: true` by default
+- Only enabled when `network: true` explicitly passed
+- Prevents unintended external connections
+
+**User Permissions:**
+- All runners execute as non-root user (UID 1000)
+- Sandbox directories pre-created with `1000:1000` ownership
+- Prevents privilege escalation
+
+**Resource Limits:**
+- **CPU**: 0.5 cores per container
+- **Memory**: 256MB per container
+- **Timeout**: 30 seconds maximum execution
+- **Auto-cleanup**: Containers removed after execution
+
+**Minimal Images:**
+- Alpine Linux base for smaller attack surface
+- Only essential packages installed
+- No shells or unnecessary tools
+
+### Hashed Directory Security
+
+Conversation data is stored in directories named using SHA256 hashing:
+
+```
+Directory path: /sandboxes/{SHA256(conversationId + FILE_SECRET)}/
+File URL: https://example.com/files/{hash}/{filename}
+```
+
+**Security Properties:**
+1. **Unpredictable** - Cannot guess hash without knowing `FILE_SECRET`
+2. **Filesystem-safe** - Hash is always valid hex (64 chars: `[0-9a-f]`)
+3. **No path traversal** - No `..` or `/` possible in hash
+4. **Brute-force resistant** - 2^256 possible values
+
+**No signatures needed** - The hash itself provides security, eliminating need for HMAC signatures on URLs.
 
 ### Authentication
 
-- MCP endpoints require `Authorization: Bearer` token
-- File downloads use HMAC-SHA256 signed URLs
-- Constant-time signature comparison prevents timing attacks
+**API Endpoints:**
+- All `/mcp` requests require `Authorization: Bearer <token>`
+- Token validated via middleware before processing
 
-### Path Traversal Protection
+**File Downloads:**
+- No authentication required (security via hashed directory)
+- Path traversal prevention
+- Only serves files within sandbox root
 
-File downloads verify paths are within the conversation's sandbox directory.
+### Production Recommendations
+
+1. **Strong secrets** - Generate with `openssl rand -base64 32`
+2. **Isolated host** - Run on dedicated server or VM
+3. **Docker socket** - Consider Docker-in-Docker for better isolation
+4. **HTTPS** - Use Cloudflare Tunnel or reverse proxy with TLS
+5. **Rate limiting** - Implement at proxy/gateway level
+6. **Monitoring** - Track container creation, resource usage, errors
+7. **Backups** - Regular backups of sandbox data volume
+
+## Deployment
+
+### Local Development
+
+```bash
+# Start with Docker Compose
+docker-compose up -d
+
+# Test endpoint
+curl http://localhost:8080 \
+  -H "Authorization: Bearer your-token"
+```
+
+### Production with Cloudflare Tunnel
+
+```bash
+# Set TUNNEL_TOKEN in .env
+# Configure tunnel to route to http://mcp-sandbox-server:8080
+
+# Start with Cloudflare compose file
+docker-compose -f docker-compose-cloudflare.yml up -d
+
+# Verify tunnel
+docker-compose -f docker-compose-cloudflare.yml logs cloudflared
+```
+
+### File Downloads
+
+Files are accessible via public URLs without authentication:
+
+```bash
+# Download a generated file
+curl "http://localhost:8080/files/abc123.../plot.png" -o plot.png
+```
 
 ## Development
 
 ### Adding a New Language Runner
 
-Create `Dockerfile-<language>` with inline runner script:
+1. **Create Dockerfile** (`Dockerfile-<language>`):
 
 ```dockerfile
 FROM <base-image>
 
+# Labels for discovery
 LABEL sandbox.runner=true
 LABEL sandbox.language=<language>
 
-# Create non-root user
+# Non-root user (UID 1000)
 RUN adduser -D -u 1000 sandbox
 
-# Install interpreter and dependencies
-RUN ...
+# Install language runtime and libraries
+RUN apk add --no-cache <packages>
 
-# Create runner script inline
+# Create runner script
 RUN cat > /usr/local/bin/runner.sh <<'EOF'
 #!/bin/sh
 set -e
-TEMP_FILE=$(mktemp /tmp/main-XXXXXX.<ext>)
-cat > "$TEMP_FILE"
+cat > /tmp/script.<ext>
 cd /data
-exec <interpreter> "$TEMP_FILE"
+exec <interpreter> /tmp/script.<ext>
 EOF
 
-RUN chmod +x /usr/local/bin/runner.sh && \
-    chown sandbox:sandbox /usr/local/bin/runner.sh
+RUN chmod +x /usr/local/bin/runner.sh
 
-USER sandbox
+USER 1000:1000
 WORKDIR /data
 ENTRYPOINT ["/usr/local/bin/runner.sh"]
 ```
 
-Build the image:
+2. **Build image:**
 
 ```bash
-docker build -f Dockerfile-<language> -t runner-<language> .
+docker build -f Dockerfile-<language> -t mcp-sandbox-runner-<language>:latest .
 ```
 
-Restart the server - it will auto-discover the new runner.
+3. **Restart server** - Auto-discovery will find the new runner
 
 ### Project Structure
 
 ```
-.
-   cmd/server/           # Main application
-   internal/
-      auth/            # Authentication middleware
-      config/          # Configuration management
-      filesign/        # File URL signing
-      handler/         # HTTP handlers and JSON-RPC
-      runner/          # Container execution and registry
-      sandbox/         # Filesystem management
-   docker/              # Runner scripts
-   Dockerfile-python    # Python runner image
-   Dockerfile-typescript # TypeScript runner image
-   build.sh            # Build script
+code-runner/
+├── cmd/server/              # Main server application
+├── internal/
+│   ├── auth/               # Bearer token authentication
+│   ├── config/             # Environment configuration
+│   ├── filesign/           # Base URL management
+│   ├── handler/            # HTTP handlers, MCP protocol
+│   ├── runner/             # Docker container execution
+│   └── sandbox/            # Filesystem management
+├── Dockerfile-python       # Python runner image
+├── Dockerfile-typescript   # TypeScript/Bun runner image
+├── Dockerfile              # Server image
+├── build.sh               # Build all images
+├── start.sh               # Start server with env
+├── docker-compose.yml     # Local deployment
+└── docker-compose-cloudflare.yml  # Cloudflare deployment
 ```
 
-## Testing
+## Monitoring
 
-### Manual Testing
-
-Test Python execution:
+### View Active Containers
 
 ```bash
-curl -X POST http://localhost:8080/mcp \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": "test1",
-    "method": "tools/call",
-    "params": {
-      "name": "sandbox.run_code",
-      "arguments": {
-        "conversationId": "test-conv",
-        "language": "python",
-        "code": "import sys\nprint(f\"Python {sys.version}\")\nwith open(\"/data/hello.txt\", \"w\") as f:\n    f.write(\"Hello from Python!\")"
-      }
-    }
-  }' | jq
+# All containers
+docker ps
+
+# Only runners
+docker ps --filter "label=sandbox.runner=true"
 ```
 
-Test TypeScript execution:
+### Resource Usage
 
 ```bash
-curl -X POST http://localhost:8080/mcp \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": "test2",
-    "method": "tools/call",
-    "params": {
-      "name": "sandbox.run_code",
-      "arguments": {
-        "conversationId": "test-conv",
-        "language": "typescript",
-        "code": "console.log(\"Hello from TypeScript!\");\nconst fs = require(\"fs\");\nfs.writeFileSync(\"/data/output.json\", JSON.stringify({msg: \"test\"}));"
-      }
-    }
-  }' | jq
+# Real-time stats
+docker stats
+
+# Server only
+docker stats mcp-sandbox-server
 ```
 
-Download a file (replace signature with actual value from response):
+### Logs
 
 ```bash
-curl "http://localhost:8080/files/test-conv/hello.txt?sig=<actual-signature>"
+# Server logs
+docker-compose logs -f mcp-sandbox-server
+
+# All logs
+docker-compose logs -f
 ```
 
-## Future Enhancements
+### Disk Usage
 
-- Time-limited signed URLs with expiration
-- Streaming stdout/stderr via SSE during execution
-- Per-conversation resource quotas
-- Container pooling for reduced latency
-- Support for additional languages (JavaScript, Ruby, etc.)
-- Sandbox cleanup policies
+```bash
+# Docker resources
+docker system df
+
+# Sandbox data
+du -sh ./sandbox-data
+```
+
+## Troubleshooting
+
+### Server can't connect to Docker
+
+```bash
+# Check Docker socket
+ls -la /var/run/docker.sock
+
+# Test Docker
+docker ps
+
+# Check logs
+docker-compose logs mcp-sandbox-server
+```
+
+### Runner images not found
+
+```bash
+# List runners
+docker images | grep mcp-sandbox-runner
+
+# Rebuild
+./build.sh
+
+# Restart
+docker-compose restart
+```
+
+### Permission errors in containers
+
+```bash
+# Check sandbox directory ownership
+ls -la sandbox-data/
+
+# Fix ownership (if needed)
+sudo chown -R 1000:1000 sandbox-data/
+```
+
+### Port already in use
+
+```bash
+# Find process
+lsof -i :8080
+
+# Change port in .env
+MCP_HTTP_ADDR=:8081
+PUBLIC_BASE_URL=http://localhost:8081
+
+# Restart
+docker-compose down && docker-compose up -d
+```
 
 ## License
 
