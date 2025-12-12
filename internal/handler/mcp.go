@@ -97,7 +97,8 @@ func (h *MCPHandler) handleRunCode(ctx context.Context, id interface{}, argsJSON
 	}
 
 	// Ensure sandbox directory exists (creates on filesystem)
-	_, err := h.sandbox.EnsureSandboxDir(args.ConversationID)
+	// Returns the hashed directory name which is safe to expose in URLs
+	hashedDir, err := h.sandbox.EnsureSandboxDir(args.ConversationID)
 	if err != nil {
 		log.Printf("Failed to create sandbox directory: %v", err)
 		result := RunCodeResult{
@@ -134,12 +135,13 @@ func (h *MCPHandler) handleRunCode(ctx context.Context, id interface{}, argsJSON
 		files = []string{}
 	}
 
-	// Create file descriptors with signed URLs
+	// Create file descriptors with simple URLs (hashedDir is already secure)
 	fileDescriptors := make([]FileDescriptor, 0, len(files))
+	baseURL := h.signer.GetBaseURL()
 	for _, filename := range files {
 		fileDescriptors = append(fileDescriptors, FileDescriptor{
 			Name: filename,
-			URL:  h.signer.MakeFileURL(args.ConversationID, filename),
+			URL:  fmt.Sprintf("%s/files/%s/%s", baseURL, hashedDir, filename),
 		})
 	}
 

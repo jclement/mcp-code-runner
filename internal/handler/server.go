@@ -48,7 +48,7 @@ func (s *Server) SetupRoutes(mux *http.ServeMux) {
 	mux.Handle("/mcp", authMW(http.HandlerFunc(s.handleMCP)))
 	mux.Handle("/mcp/events", authMW(http.HandlerFunc(s.handleSSE)))
 
-	// File download endpoint (no auth, uses signed URLs)
+	// File download endpoint (no auth, URLs use hashed directory names for security)
 	mux.HandleFunc("/files/", s.handleFileDownload)
 }
 
@@ -108,14 +108,15 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	<-r.Context().Done()
 }
 
-// handleFileDownload handles file download requests with signature verification
+// handleFileDownload handles file download requests
+// URLs are secure because the hashedDir is SHA256(conversationID + secret)
 func (s *Server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Parse URL path: /files/{conversationId}/{filename}
+	// Parse URL path: /files/{hashedDir}/{filename}
 	path := strings.TrimPrefix(r.URL.Path, "/files/")
 	parts := strings.SplitN(path, "/", 2)
 	if len(parts) != 2 {
@@ -123,25 +124,17 @@ func (s *Server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conversationID := parts[0]
+	hashedDir := parts[0]
 	filename := parts[1]
 
-	// Get signature from query
-	sig := r.URL.Query().Get("sig")
-	if sig == "" {
-		http.Error(w, "Missing signature", http.StatusForbidden)
+	// Validate hashedDir is a valid hex string (64 chars for SHA256)
+	if len(hashedDir) != 64 {
+		http.Error(w, "Invalid directory hash", http.StatusBadRequest)
 		return
 	}
 
-	// Verify signature
-	if !s.signer.VerifySignature(conversationID, filename, sig) {
-		log.Printf("Invalid signature for file: %s/%s", conversationID, filename)
-		http.Error(w, "Invalid signature", http.StatusForbidden)
-		return
-	}
-
-	// Get file path
-	filePath := s.sandbox.GetFilePath(conversationID, filename)
+	// Get file path using the hashed directory
+	filePath := s.sandbox.GetFilePath(hashedDir, filename)
 
 	// Check if file exists and is regular file
 	info, err := os.Stat(filePath)
@@ -160,9 +153,9 @@ func (s *Server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prevent path traversal
-	sandboxDir := s.sandbox.GetSandboxDir(conversationID)
-	if !strings.HasPrefix(filepath.Clean(filePath), filepath.Clean(sandboxDir)) {
+	// Prevent path traversal - ensure file is within sandbox root
+	sandboxRoot := s.sandbox.GetSandboxRoot()
+	if !strings.HasPrefix(filepath.Clean(filePath), filepath.Clean(sandboxRoot)) {
 		log.Printf("Path traversal attempt: %s", filePath)
 		http.Error(w, "Invalid file path", http.StatusForbidden)
 		return

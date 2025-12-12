@@ -1,6 +1,8 @@
 package sandbox
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,26 +13,37 @@ import (
 type Manager struct {
 	sandboxRoot     string // Root directory for filesystem operations (server's view)
 	sandboxHostPath string // Root directory on Docker host for bind mounts (may be same as sandboxRoot)
+	secret          string // Secret for hashing conversation IDs
 }
 
 // NewManager creates a new sandbox manager
-func NewManager(sandboxRoot, sandboxHostPath string) *Manager {
+func NewManager(sandboxRoot, sandboxHostPath, secret string) *Manager {
 	return &Manager{
 		sandboxRoot:     sandboxRoot,
 		sandboxHostPath: sandboxHostPath,
+		secret:          secret,
 	}
+}
+
+// hashConversationID creates a filesystem-safe hash of conversationID + secret
+func (m *Manager) hashConversationID(conversationID string) string {
+	h := sha256.New()
+	h.Write([]byte(conversationID))
+	h.Write([]byte(m.secret))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // EnsureSandboxDir ensures the sandbox directory exists for a conversation
 // Creates the directory and sets ownership to 1000:1000 for runner containers
-// Returns the absolute path to the conversation's sandbox directory
+// Returns the hashed directory name (not full path)
 func (m *Manager) EnsureSandboxDir(conversationID string) (string, error) {
 	if conversationID == "" {
 		return "", fmt.Errorf("conversationID cannot be empty")
 	}
 
-	// Create conversation directory path
-	sandboxDir := filepath.Join(m.sandboxRoot, conversationID)
+	// Hash the conversation ID to create filesystem-safe directory name
+	hashedDir := m.hashConversationID(conversationID)
+	sandboxDir := filepath.Join(m.sandboxRoot, hashedDir)
 
 	// Create directory with 0777 permissions
 	if err := os.MkdirAll(sandboxDir, 0o777); err != nil {
@@ -49,12 +62,13 @@ func (m *Manager) EnsureSandboxDir(conversationID string) (string, error) {
 		fmt.Printf("Warning: failed to chmod %s to 0777: %v\n", sandboxDir, err)
 	}
 
-	return sandboxDir, nil
+	return hashedDir, nil
 }
 
 // ListFiles lists all files in a conversation's sandbox directory
 func (m *Manager) ListFiles(conversationID string) ([]string, error) {
-	sandboxDir := filepath.Join(m.sandboxRoot, conversationID)
+	hashedDir := m.hashConversationID(conversationID)
+	sandboxDir := filepath.Join(m.sandboxRoot, hashedDir)
 
 	// Check if directory exists
 	if _, err := os.Stat(sandboxDir); os.IsNotExist(err) {
@@ -79,25 +93,28 @@ func (m *Manager) ListFiles(conversationID string) ([]string, error) {
 }
 
 // GetFilePath returns the absolute path to a file in a conversation's sandbox
-func (m *Manager) GetFilePath(conversationID, filename string) string {
-	return filepath.Join(m.sandboxRoot, conversationID, filename)
+func (m *Manager) GetFilePath(hashedDir, filename string) string {
+	return filepath.Join(m.sandboxRoot, hashedDir, filename)
 }
 
 // GetSandboxDir returns the absolute path to a conversation's sandbox directory
 // This path is used for filesystem operations by the server
 func (m *Manager) GetSandboxDir(conversationID string) string {
-	return filepath.Join(m.sandboxRoot, conversationID)
+	hashedDir := m.hashConversationID(conversationID)
+	return filepath.Join(m.sandboxRoot, hashedDir)
 }
 
 // GetSandboxHostPath returns the absolute path on the Docker host for bind mounting
 // This is used when creating runner containers - they need the host's perspective
 func (m *Manager) GetSandboxHostPath(conversationID string) string {
-	return filepath.Join(m.sandboxHostPath, conversationID)
+	hashedDir := m.hashConversationID(conversationID)
+	return filepath.Join(m.sandboxHostPath, hashedDir)
 }
 
 // DeleteSandbox removes a conversation's sandbox directory and all its contents
 func (m *Manager) DeleteSandbox(conversationID string) error {
-	sandboxDir := filepath.Join(m.sandboxRoot, conversationID)
+	hashedDir := m.hashConversationID(conversationID)
+	sandboxDir := filepath.Join(m.sandboxRoot, hashedDir)
 	return os.RemoveAll(sandboxDir)
 }
 

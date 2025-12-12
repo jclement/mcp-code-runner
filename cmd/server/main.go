@@ -73,7 +73,7 @@ func main() {
 	}
 
 	// Create components
-	sandboxMgr := sandbox.NewManager(cfg.SandboxRoot, cfg.SandboxHostPath)
+	sandboxMgr := sandbox.NewManager(cfg.SandboxRoot, cfg.SandboxHostPath, cfg.FileSecret)
 	signer := filesign.NewSigner(cfg.FileSecret, cfg.PublicBaseURL)
 	executor := runner.NewExecutor(dockerClient, 30*time.Second)
 

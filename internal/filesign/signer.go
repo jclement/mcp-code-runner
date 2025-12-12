@@ -48,3 +48,8 @@ func (s *Signer) VerifySignature(conversationID, filename, providedSig string) b
 	expectedSig := s.SignPath(conversationID, filename)
 	return subtle.ConstantTimeCompare([]byte(expectedSig), []byte(providedSig)) == 1
 }
+
+// GetBaseURL returns the public base URL
+func (s *Signer) GetBaseURL() string {
+	return strings.TrimRight(s.publicBaseURL, "/")
+}
